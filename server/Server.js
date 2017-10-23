@@ -1,0 +1,62 @@
+const
+	HTTP = require("http"),
+	URL = require("url"),
+	BIND = require("./bind.js");
+
+var INSTANCE;
+
+module.exports = class Server {
+	constructor(port=8888, routes={}, verbose=true) {
+		this.port = port;
+		this.routes = routes;
+		this.verbose = verbose;
+
+		BIND(this);
+
+		INSTANCE = this;
+	}
+
+	start() {
+		this.server = HTTP.createServer(this.handle);
+		this.server.listen(this.port);
+		if (this.verbose)
+			console.log("Server started at port " + this.port + ".");
+	}
+
+	stop() {
+		this.server.close();
+		if (this.verbose)
+			console.log("\nServer stopped.");
+	}
+
+	handle(request, response) {
+		var reqUrl = URL.parse(request.url),
+			body = [];
+
+		if (this.verbose)
+			console.log("\n" + request.method + " Request for " + reqUrl.pathname + " recieved.");
+
+		if (request.method == "PUT") {
+			request.on("data", function(chunk) {
+				body.push(chunk);
+			}).on("end", function() {
+				request.body = Buffer.concat(body);
+				
+				if (INSTANCE.routes[reqUrl.pathname] && INSTANCE.routes[reqUrl.pathname][request.method]) {
+					response = INSTANCE.routes[reqUrl.pathname][request.method](request, response);
+				} else {
+					response.writeHead(404);
+					response.end();
+				}
+			});
+
+		} else {
+			if (this.routes[reqUrl.pathname] && this.routes[reqUrl.pathname][request.method]) {
+				response = this.routes[reqUrl.pathname][request.method](request, response, this.verbose);
+			} else {
+				response.writeHead(404);
+				response.end();
+			}
+		}
+	}
+}
