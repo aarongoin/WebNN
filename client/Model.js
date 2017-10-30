@@ -12,6 +12,7 @@ var Model = function(model, layers) {
 
 	if (layers != null) {
 		layers = new Float32Array(layers);
+		console.log("Weights: " + layers.length);
 	} else {
 		console.log("Calculon- Generating random weights")
 	}
@@ -79,7 +80,8 @@ Model.prototype.save = function() {
 		weights.set( this.layers[l].save(), o);
 		o += this.layers[l].size;
 	}
-	return weights;
+	console.log("weights: " + weights);
+	return weights.buffer;
 }
 
 module.exports = Model;

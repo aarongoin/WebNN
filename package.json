@@ -15,9 +15,11 @@
 		]
 	},
 	"dependencies": {
+		"gl": "^4.0.4",
 		"ndarray": "^1.0.18",
 		"node-uuid": "^1.4.8",
 		"preact": "^8.1.0",
+		"socket.io": "^2.0.4",
 		"tensorfire": "^0.9.1"
 	},
 	"devDependencies": {

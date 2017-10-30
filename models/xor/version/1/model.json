@@ -3,10 +3,11 @@
 	"version": "1",
 	"batches": 1,
 	"last_batch": -1,
-	"current_iteration": 0,
+	"root": 0,
+	"current_iteration": 1000,
 	"iterations": 500,
 	"learning_rate": 0.5,
-	"get_weights": false,
+	"get_weights": true,
 	"log_rate": 10,
 	"loss": "mse",
 	"layers": [

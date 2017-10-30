@@ -14,13 +14,17 @@ UUID = (function(){
 		}
 		return id;
 	};
-})();
+})(),
+MERGER = require("./merge");
+//fork = require("child-process").fork;
 
 var
 refreshing = false,
 sinceRefresh = null,
 currentModel = {},
+num_clients = 0,
 paths = {},
+Merger = null,
 
 Routes = {
 
@@ -51,10 +55,14 @@ Routes = {
 	},
 	"/train": { // request model to be the one trained
 		"PUT": function(request, response, verbose) {
-			var train = JSON.parse(request.body);
+			var train = JSON.parse(request.body),
+				modelpath = "./models/" + train.model + "/version/" + train.version + "/";
 			// TODO: save currentModel to disk if switching
-			data = FS.readFileSync("./models/" + train.model + "/version/" + train.version + "/model.json", 'utf8');
-				
+			data = FS.readFileSync(modelpath + "model.json", 'utf8');
+			
+			//if (Merger !== null) Merger.save();
+			Merger = new MERGER(modelpath + "current");
+
 			currentModel = JSON.parse(data);
 			response.writeHead(200);
 			response.end();
@@ -164,6 +172,7 @@ Routes = {
 			var id = UUID();
 
 			paths[id] = {
+				root: currentModel.root,
 				iteration: currentModel.current_iteration,
 				data: "./models/" + currentModel.model + "/data/",
 				path: "./models/" + currentModel.model + "/version/" + currentModel.version + "/",
@@ -171,6 +180,7 @@ Routes = {
 			};
 
 			currentModel.id = id;
+			num_clients++;
 			CreateRoutes(id, currentModel.model, currentModel.version);
 
 			response.writeHead(200, {"Content-Type": "application/json"});
@@ -209,6 +219,9 @@ CreateRoutes = function(id) {
 			delete Routes["/data/" + id];
 			delete Routes["/close/" + id];
 
+			num_clients--;
+			paths[id] = undefined;
+
 			response.writeHead(200);
 			response.end();
 		}
@@ -229,13 +242,24 @@ CreateRoutes = function(id) {
 		},
 		"PUT": function(request, response, verbose) {
 			FS.appendFile(paths[id].path + "weights/" + id, request.body, function(error) {
+				var weights;
+				var staleness = (currentModel.root - paths[id].root) + 1; // staleness >= 1
 				if (error) throw error;
 				else {
-					// TODO: integrate data into model
-					// TODO: send new batch data
-
-					response.writeHead(200);
+					console.log("buffer: " + request.body.buffer);
+					weights = new Float32Array(new Uint8Array(request.body).buffer);
+					console.log("weights: " + weights);
+					if (Merger.weights !== null) console.log("orig: " + Merger.weights.read().data);
+					console.log("new: " + weights);
+					// integrate data into model
+					Merger.merge(weights, ( 1 / (staleness * num_clients)));
+					console.log(Merger.weights.read().data.buffer);
+					response.writeHead(200, {"Content-Type": "arraybuffer"});
+					response.write(Buffer.from(Merger.weights.read().data.buffer));
 					response.end();
+					
+					paths[id].root = ++currentModel.root;
+					Merger.save();
 				}
 			});
 		}
@@ -246,7 +270,7 @@ CreateRoutes = function(id) {
 			FS.appendFile(paths[id].path + "logs/" + id, request.body, function(error) {
 				if (error) throw error;
 				else {
-					FS.appendFile(paths[id].path + "logs/" + id, "," + (new Date()).toISOString() + "\n");
+					FS.appendFile(paths[id].path + "logs/" + id, ( "," + (new Date()).toISOString() + "\n" ), function(error) { if (error) throw error; });
 					var line;
 					response.writeHead(200);
 					response.end();
@@ -262,8 +286,9 @@ CreateRoutes = function(id) {
 	}
 }
 
-const Server = new SERVER(8888, Routes);
+const Server = new SERVER(8888, Routes, false);
 Server.start();
+
 
 // I read that this doesn't work on Windows (but did not verify)
 process.on('SIGINT', Server.stop);

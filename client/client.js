@@ -12,11 +12,13 @@ function GET(path, responseType, callback) {
 	r.send();
 }
 
-function PUT(path, contentType, body) {
+function PUT(path, contentType, body, callback) {
 	var r = new XMLHttpRequest();
 	r.onreadystatechange = function () {
 		if (r.readyState === XMLHttpRequest.DONE && r.status !== 200) {
-			// TODO - resend or save to local?
+			if (r.readyState === XMLHttpRequest.DONE && r.status === 200) {
+				callback(r.response);
+			}
 		}
 	}
 	r.open("PUT", path);
@@ -48,7 +50,7 @@ function Train(net, weights, batch) {
 	model.afterIteration = function(model, iteration) {
 		if (--e > 0) return;
 		// send training logs to server
-		PUT("./log/" + net.id, "text", ""+iteration+","+model.loss);
+		PUT("./log/" + net.id, "text", ""+(net.current_iteration + iteration)+","+model.loss);
 		e = net.log_rate;
 		//console.log("Iteration: " + iteration + " Loss: " + model.loss);
 	};
@@ -64,6 +66,8 @@ function Train(net, weights, batch) {
 
 (function main() {
 	var run = true;
+
+	var server = io();
 
 	// request model to train
 	GET("./model", "application/json", function(model) {
