@@ -34,6 +34,7 @@ Routes = {
 			FS.readFile('./master/master.html', 'utf8', function(error, data) {
 				if (error) throw error;
 				else {
+					sinceRefresh = null;
 					response.writeHead(200, {"Content-Type": "text/html"});
 					response.write(data);
 					response.end();
@@ -242,23 +243,18 @@ CreateRoutes = function(id) {
 		},
 		"PUT": function(request, response, verbose) {
 			FS.appendFile(paths[id].path + "weights/" + id, request.body, function(error) {
-				var weights;
 				var staleness = (currentModel.root - paths[id].root) + 1; // staleness >= 1
 				if (error) throw error;
 				else {
-					console.log("buffer: " + request.body.buffer);
-					weights = new Float32Array(new Uint8Array(request.body).buffer);
-					console.log("weights: " + weights);
-					if (Merger.weights !== null) console.log("orig: " + Merger.weights.read().data);
-					console.log("new: " + weights);
 					// integrate data into model
-					Merger.merge(weights, ( 1 / (staleness * num_clients)));
-					console.log(Merger.weights.read().data.buffer);
+					Merger.merge(new Float32Array(new Uint8Array(request.body).buffer), ( 1 / (staleness * num_clients)));
 					response.writeHead(200, {"Content-Type": "arraybuffer"});
 					response.write(Buffer.from(Merger.weights.read().data.buffer));
 					response.end();
 					
 					paths[id].root = ++currentModel.root;
+					currentModel.current_iteration += currentModel.iterations;
+					if (currentModel.get_weights == false) currentModel.get_weights = true;
 					Merger.save();
 				}
 			});

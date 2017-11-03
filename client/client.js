@@ -67,7 +67,7 @@ function Train(net, weights, batch) {
 (function main() {
 	var run = true;
 
-	var server = io();
+	//var server = io();
 
 	// request model to train
 	GET("./model", "application/json", function(model) {
