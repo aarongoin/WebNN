@@ -42,61 +42,87 @@ function POST(path, contentType, body) {
 		r.send();
 }
 
-function Train(net, weights, batch) {
-	var delta = 0;
-	var e = net.log_rate;
-	var model = new Model(net, weights);
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
-	model.afterIteration = function(model, iteration) {
-		if (--e > 0) return;
-		// send training logs to server
-		PUT("./log/" + net.id, "text", ""+(net.current_iteration + iteration)+","+model.loss);
-		e = net.log_rate;
-		//console.log("Iteration: " + iteration + " Loss: " + model.loss);
-	};
 
-	delta = window.performance.now();
-	model.train(net.learning_rate, net.iterations, batch.x, batch.y, function(model) {
-		delta = window.performance.now() - delta;
-		console.log("Time to train " + net.iteration + " iteration: " + (delta / 1000) + " seconds");
-		// post results to server
-		PUT("./weights/" + net.id, "arraybuffer", model.save());
-	});
-}
+/*
+
+	1. Get model from server
+	2. Get weights from server
+	3. Get data from server
+	4. Train and return updates
+
+
+*/
 
 (function main() {
-	var run = true;
+	var run = true,
+		net,
+		model;
+
+	function Train(weights, batch) {
+		var delta = 0;
+		var e = net.log_rate;
+
+		model = new Model(net, weights);
+
+		model.afterIteration = function(model, iteration) {
+			if (--e > 0) return;
+			// send training logs to server
+			PUT("./log/" + net.id, "text", ""+(net.current_iteration + iteration)+","+model.loss);
+			e = net.log_rate;
+			//console.log("Iteration: " + iteration + " Loss: " + model.loss);
+		};
+
+		delta = window.performance.now();
+		model.train(net.learning_rate, net.iterations, batch.x, batch.y, function(model) {
+			delta = window.performance.now() - delta;
+			console.log("Time to train " + net.iteration + " iteration: " + (delta / 1000) + " seconds");
+			// post results to server
+			PUT("./weights/" + net.id, "arraybuffer", model.save());
+			net.current_iteration++;
+			update();
+		});
+	}
+
+	function withModel(weights) {
+		// request training data
+		GET("./data/" + net.id, "arraybuffer", function(data) {
+
+			// create Float32 view of arraybuffer
+			var view = new Float32Array(data);
+
+			// unpack training batch
+			var len = view[0] * net.layers[0].shape[1], // first float is number of samples in this batch
+				batch = {
+					x: view.subarray(1, ++len),
+					y: view.subarray(len)
+				};
+
+			Train(weights, batch);
+		});
+	}
+
+	function update() {
+		GET("./weights/" + net.id, "arraybuffer", withModel);
+	}
 
 	//var server = io();
 
 	// request model to train
 	GET("./model", "application/json", function(model) {
-		model = JSON.parse(model);
+		net = JSON.parse(model);
 		window.onbeforeunload = function() {
-			POST("./close/" + model.id, "string")
+			POST("./close/" + net.id, "string")
 		};
 		
-		function withModel(layers) {
-			// request training data
-			GET("./data/" + model.id, "arraybuffer", function(data) {
 
-				// create Float32 view of arraybuffer
-				var view = new Float32Array(data);
-
-				// unpack training batch
-				var len = view[0] * model.layers[0].shape[1], // first float is number of samples in this batch
-					batch = {
-						x: view.subarray(1, ++len),
-						y: view.subarray(len)
-					};
-
-				Train(model, layers, batch);
-			});
-		}
-
-		if (model.get_weights) {
+		if (net.get_weights) {
 			// request model weights
-			GET("./weights/" + model.id, "arraybuffer", withModel);
+			update();
 		} else {
 			// generate random weights
 			withModel(null);

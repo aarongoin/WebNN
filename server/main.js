@@ -282,7 +282,7 @@ CreateRoutes = function(id) {
 	}
 }
 
-const Server = new SERVER(8888, Routes, false);
+const Server = new SERVER(8888, Routes, true);
 Server.start();
 
 

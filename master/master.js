@@ -46,7 +46,7 @@ function POST(path, contentType, body) {
 			return "rgb(" + (Math.random() * 256 >> 0) + "," + (Math.random() * 256 >> 0) + "," + (Math.random() * 256 >> 0) + ")";
 		};
 
-	PUT("./train", "application/json", JSON.stringify({model: "xor", version: "1"}));
+	PUT("./train", "application/json", JSON.stringify({model: "mnist", version: "1"}));
 
 	GET("./train", "application/json", function(logs) {
 
@@ -74,7 +74,7 @@ function POST(path, contentType, body) {
 			options: {
 				title: {
 					display: true,
-					text: "Training Loss for XOR Model",
+					text: "Training Loss for MNIST Model",
 					fontSize: 20,
 					padding: 20
 				},

@@ -1,0 +1,18 @@
+{	"id": "ignore_me",
+	"model": "mnist",
+	"version": "1",
+	"batches": 936,
+	"last_batch": -1,
+	"root": 0,
+	"current_iteration": 0,
+	"iterations": 1,
+	"learning_rate": 0.1,
+	"get_weights": true,
+	"log_rate": 1,
+	"loss": "mse",
+	"layers": [
+		{ "type": "dense", "activation": "sigmoid", "shape": [100, 784], "bias": true },
+		{ "type": "dense", "activation": "sigmoid", "shape": [100, 100], "bias": true },
+		{ "type": "dense", "activation": "sigmoid", "shape": [10, 100], "bias": true }
+	]
+}

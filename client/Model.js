@@ -43,7 +43,7 @@ Model.prototype.train = function(learn, iterations, input, expect, callback) {
 		l;
 	while (e++ < iterations) {
 		output = input;
-		//console.warn("Calculon- Iteration: " + e + ", Forward pass\n");
+		console.warn("Calculon- Iteration: " + e + ", Forward pass\n");
 		// forward propogation
 		l = -1;
 		while (++l < this.layers.length) {
@@ -56,7 +56,7 @@ Model.prototype.train = function(learn, iterations, input, expect, callback) {
 		output = this.lossLayer.deltas(output, expect);
 		this.loss = this.lossLayer.batchLoss
 
-		//console.warn("Calculon- Iteration: " + e + ", Backward pass");
+		console.warn("Calculon- Iteration: " + e + ", Backward pass");
 		// backward propogation
 		l = this.layers.length;
 		while (l-- > 0) {
@@ -65,7 +65,7 @@ Model.prototype.train = function(learn, iterations, input, expect, callback) {
 		// chance to send out data from model (metadata and log data)
 		if (typeof this.afterIteration === "function") this.afterIteration(this, e);
 
-		//console.warn("Calculon- Iteration: " + e + ", Loss: " + this.loss);
+		console.warn("Calculon- Iteration: " + e + ", Loss: " + this.loss);
 	}
 	if (typeof callback === "function") callback(this);
 }
@@ -80,7 +80,7 @@ Model.prototype.save = function() {
 		weights.set( this.layers[l].save(), o);
 		o += this.layers[l].size;
 	}
-	console.log("weights: " + weights);
+	//console.log("weights: " + weights);
 	return weights.buffer;
 }
 
