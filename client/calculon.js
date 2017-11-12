@@ -23,7 +23,7 @@ function generate(shape, bias) {
 	var result = new Float32Array(shape[0] * shape[1] + bias);
 	var l = -1;
 	while (++l < result.length) {
-		result[l] = random(0, shape[0]);
+		result[l] = random(0, Math.sqrt(2 / shape[0]));
 	}return result;
 }
 
