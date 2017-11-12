@@ -197,6 +197,19 @@ Routes = {
 	}
 },
 
+DeleteRoutes = function(id) {
+	// remove routes
+	delete Routes["/model/" + id];
+	delete Routes["/log/" + id];
+	delete Routes["/data/" + id];
+	delete Routes["/close/" + id];
+
+	num_clients--;
+	paths[id] = undefined;
+
+	if (num_clients === 0) Server.stop();
+},
+
 CreateRoutes = function(id) {
 
 	Routes["/data/" + id] = { // get data for the model
@@ -220,14 +233,7 @@ CreateRoutes = function(id) {
 	Routes["/close/" + id] = { // done training
 		"POST": function(request, response, verbose) {
 			
-			// remove routes
-			delete Routes["/model/" + id];
-			delete Routes["/log/" + id];
-			delete Routes["/data/" + id];
-			delete Routes["/close/" + id];
-
-			num_clients--;
-			paths[id] = undefined;
+			DeleteRoutes(id);
 
 			response.writeHead(200);
 			response.end();
@@ -238,32 +244,28 @@ CreateRoutes = function(id) {
 		"GET": function(request, response, verbose) {
 			// send weights for layers
 			// data: <Buffer> [ ...layers ]
-			FS.readFile(paths[id].path + "current", function(error, data) {
-				if (error) throw error;
-				else {
-					response.writeHead(200, {"Content-Type": "arraybuffer"});
-					response.write(data);
-					response.end();
-				}
-			});
+			response.writeHead(200, {"Content-Type": "arraybuffer"});
+			response.write(Buffer.from(Merger.weights.read().data.buffer));
+			response.end();
 		},
 		"PUT": function(request, response, verbose) {
-			FS.appendFile(paths[id].path + "weights/" + id, request.body, function(error) {
-				var staleness = (currentModel.root - paths[id].root) + 1; // staleness >= 1
-				if (error) throw error;
-				else {
-					// integrate data into model
-					Merger.merge(new Float32Array(new Uint8Array(request.body).buffer), ( 1 / (staleness * num_clients)));
-					response.writeHead(200, {"Content-Type": "arraybuffer"});
-					response.write(Buffer.from(Merger.weights.read().data.buffer));
-					response.end();
-					
-					paths[id].root = ++currentModel.root;
-					currentModel.current_iteration += currentModel.iterations;
-					if (currentModel.get_weights == false) currentModel.get_weights = true;
-					Merger.save();
-				}
-			});
+			var staleness = (currentModel.root - paths[id].root) + 1; // staleness >= 1
+			// integrate data into model
+			Merger.merge(new Float32Array(new Uint8Array(request.body).buffer), ( 1 / (staleness * num_clients)));
+			
+			if (!shouldQuit) {
+				response.writeHead(200, {"Content-Type": "arraybuffer"});
+				response.write(Buffer.from(Merger.weights.read().data.buffer));
+				
+			}
+			response.end();
+			
+			paths[id].root = ++currentModel.root;
+			currentModel.current_iteration += currentModel.iterations;
+			if (currentModel.get_weights == false) currentModel.get_weights = true;
+			Merger.save();
+
+			if (shouldQuit) DeleteRoutes(id);
 		}
 	};
 
