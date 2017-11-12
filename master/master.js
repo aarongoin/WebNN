@@ -46,6 +46,12 @@ function POST(path, contentType, body) {
 			return "rgb(" + (Math.random() * 256 >> 0) + "," + (Math.random() * 256 >> 0) + "," + (Math.random() * 256 >> 0) + ")";
 		};
 
+	var shouldUpdate = true;
+
+	window.onbeforeunload = function() {
+		shouldUpdate = false;
+	}
+
 	PUT("./train", "application/json", JSON.stringify({model: "mnist", version: "1"}));
 
 	GET("./train", "application/json", function(logs) {
@@ -80,11 +86,17 @@ function POST(path, contentType, body) {
 				},
 				legend: {
 					position: 'right'
+				},
+				elements: {
+					line: {
+						tension: 0, // disables bezier curves
+					}
 				}
 			}
 		});
 
-		window.setInterval( function() {
+		function update() {
+			console.log("updating...");
 			GET("./train", "application/json", function(logs) {
 				logs = JSON.parse(logs);
 				chart.data.datasets.forEach(function(dataset) {
@@ -106,8 +118,10 @@ function POST(path, contentType, body) {
 				}
 
 				chart.update();
-
+				if (shouldUpdate) update();
 			});
-		}, 100);
+		}
+
+		update();
 	});
 })();

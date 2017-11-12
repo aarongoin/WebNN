@@ -42,17 +42,16 @@ module.exports = class Server {
 		var reqUrl = URL.parse(request.url),
 			body = [];
 
-		if (this.verbose)
-			console.log("\n" + request.method + " Request for " + reqUrl.pathname + " recieved.");
+		if (this.verbose) console.log("\n" + request.method + " Request for " + reqUrl.pathname + " recieved.");
 
-		if (request.method == "PUT") {
+		if (request.method === "PUT") {
 			request.on("data", function(chunk) {
 				body.push(chunk);
 			}).on("end", function() {
 				request.body = Buffer.concat(body);
 				
 				if (INSTANCE.routes[reqUrl.pathname] && INSTANCE.routes[reqUrl.pathname][request.method]) {
-					response = INSTANCE.routes[reqUrl.pathname][request.method](request, response);
+					INSTANCE.routes[reqUrl.pathname][request.method](request, response);
 				} else {
 					response.writeHead(404);
 					response.end();
@@ -61,7 +60,8 @@ module.exports = class Server {
 
 		} else {
 			if (this.routes[reqUrl.pathname] && this.routes[reqUrl.pathname][request.method]) {
-				response = this.routes[reqUrl.pathname][request.method](request, response, this.verbose);
+
+				this.routes[reqUrl.pathname][request.method](request, response, this.verbose);
 			} else {
 				response.writeHead(404);
 				response.end();

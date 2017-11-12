@@ -19,12 +19,67 @@ MERGER = require("./merge");
 //fork = require("child-process").fork;
 
 var
-refreshing = false,
 sinceRefresh = null,
 currentModel = {},
+modelPath = "",
 num_clients = 0,
 paths = {},
 Merger = null,
+longPoll = null,
+shouldQuit = false,
+
+refreshServer = function() {
+	longPoll.writeHead(200, {"Content-Type": "application/json"});
+	longPoll.write(JSON.stringify(sinceRefresh));
+	longPoll.end();
+	sinceRefresh = {};
+	longPoll = null;
+},
+
+loadLogs = function() {
+	// get logs for currentModel and send data to Master
+	var log_directory = "./models/" + currentModel.model + "/version/" + currentModel.version + "/logs/";
+	//console.log("sinceRefresh: " + sinceRefresh);
+	FS.readdir(log_directory, function(error, files) {
+		var length = files.length;
+
+		if (length == 1) return;
+
+		sinceRefresh = {};
+
+		files.forEach(function(filename, index) {
+			if (filename === ".DS_Store") {
+				length--;
+				return;
+			}
+
+			sinceRefresh[filename] = [];
+
+			var rl, firstLine = true;
+
+			rl = READLINE.createInterface({
+				input : FS.createReadStream(log_directory + filename),
+				terminal: false
+			});
+
+			rl.on('close', function() {
+				length--;
+				if (length === 0) {
+					refreshServer();
+				}
+			});
+
+			rl.on('line', function(line) {
+				if (firstLine) {
+					firstLine = false;
+					return;
+				}
+				line = line.split(",");
+				sinceRefresh[filename].push({x: Number(line[0]), y: Number(line[1])});
+			});
+		});
+	});
+},
 
 Routes = {
 
@@ -56,13 +111,13 @@ Routes = {
 	},
 	"/train": { // request model to be the one trained
 		"PUT": function(request, response, verbose) {
-			var train = JSON.parse(request.body),
-				modelpath = "./models/" + train.model + "/version/" + train.version + "/";
+			var train = JSON.parse(request.body);
+			modelPath = "./models/" + train.model + "/version/" + train.version + "/";
 			// TODO: save currentModel to disk if switching
-			data = FS.readFileSync(modelpath + "model.json", 'utf8');
+			data = FS.readFileSync(modelPath + "model.json", 'utf8');
 			
 			//if (Merger !== null) Merger.save();
-			Merger = new MERGER(modelpath + "current");
+			Merger = new MERGER(modelPath + "current");
 
 			currentModel = JSON.parse(data);
 			response.writeHead(200);
@@ -70,63 +125,14 @@ Routes = {
 			sinceRefresh = null;
 		},
 		"GET": function(request, response, verbose) {
-			// get logs for currentModel and send data to Master
-			var log_directory = "./models/" + currentModel.model + "/version/" + currentModel.version + "/logs/";
-			//console.log("sinceRefresh: " + sinceRefresh);
-			if (sinceRefresh === null) FS.readdir(log_directory, function(error, files) {
-				var length = files.length;
-				refreshing = true;
-
-				response.writeHead(200, {"Content-Type": "application/json"});
-
-				if (length == 1) {
-					response.write("{}");
-					response.end();
-					return;
-				}
-
-				sinceRefresh = {};
-
-				files.forEach(function(filename, index) {
-					if (filename === ".DS_Store") {
-						length--;
-						return;
-					}
-
-					sinceRefresh[filename] = [];
-
-					var rl, firstLine = true;
-
-					rl = READLINE.createInterface({
-						input : FS.createReadStream(log_directory + filename),
-						terminal: false
-					});
-
-					rl.on('close', function() {
-						length--;
-						if (length === 0) {
-							response.write(JSON.stringify(sinceRefresh));
-							response.end();
-							sinceRefresh = {};
-							refreshing = false;
-						}
-					});
-
-					rl.on('line', function(line) {
-						if (firstLine) {
-							firstLine = false;
-							return;
-						}
-						line = line.split(",");
-						sinceRefresh[filename].push({x: Number(line[0]), y: Number(line[1])});
-					});
-				});
-			});
-			else if (!refreshing) {
-				response.write(JSON.stringify(sinceRefresh));
-				response.end();
-				sinceRefresh = {};
-			}
+			if (sinceRefresh === null) loadLogs();
+			longPoll = response;
+		}
+	},
+	"/stop": {
+		"PUT": function(request, response, verbose) {
+			Merger.save();
+			shouldQuit = true;
 		}
 	},
 
@@ -274,17 +280,26 @@ CreateRoutes = function(id) {
 					if (sinceRefresh !== null) {
 						sinceRefresh[id] = sinceRefresh[id] || [];
 						line = request.body.toString().toString().split(",");
-						sinceRefresh[id].push({x: Number(line[0]), y: Number(line[1])})
+						sinceRefresh[id].push({x: Number(line[0]), y: Number(line[1])});
+						if (longPoll !== null) refreshServer();
 					}
 				}
 			});
 		}
 	}
-}
+},
 
-const Server = new SERVER(8888, Routes, true);
+onStop = function() {
+	Server.stop();
+	console.log("Goodbye.");
+	FS.writeFileSync(modelPath + "model.json", JSON.stringify(currentModel), "utf8")
+};
+
+
+
+const Server = new SERVER(25749, Routes, true);
 Server.start();
 
 
 // I read that this doesn't work on Windows (but did not verify)
-process.on('SIGINT', Server.stop);
+process.on('SIGINT', onStop);
