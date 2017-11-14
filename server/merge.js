@@ -5,7 +5,7 @@ TF = require("tensorfire"),
 GL = require("gl")(512, 512, { preserveDrawingBuffer: true });
 
 module.exports = class Merger {
-	constructor(path) {
+	constructor(path, validateEvery) {
 		this.shader  = "uniform Tensor W; \n" /* weights */
 					+ "uniform Tensor N; \n" /* new weights */
 					+ "uniform float l; \n" /* learning rate */
@@ -20,16 +20,23 @@ module.exports = class Merger {
 		this.path = path;
 
 		if (FS.existsSync(path))
-			FS.readFile(path, this.load.bind(this));
-		else {
-			this.weights = null;
-		}
+			this.load(null, FS.readFileSync(path));
+		else this.weights = null;
+
+		this.shouldValidate = false;
+		this.validateEvery = validateEvery;
+		this.merges = validateEvery - 1;
 	}
 
-	merge(weights, scale, callback) {
+	merge(weights, scale) {
 		var newWeights = new TF.Tensor(GL, ndarray( weights, [ weights.length ]));
 		if (this.weights !== null) this.weights.run(this.shader, {W: this.weights, N: newWeights, l: scale});
 		else this.weights = new TF.InPlaceTensor(GL, ndarray(weights, [weights.length]));
+		this.shouldValidate = false;
+		if (++this.merges === this.validateEvery) {
+			this.shouldValidate = true;
+			this.merges = 0;
+		}
 	}
 
 	load(error, data) {
@@ -37,6 +44,7 @@ module.exports = class Merger {
 		else {
 			data = new Float32Array(data.buffer);
 			this.weights = new TF.InPlaceTensor(GL, ndarray(data, [data.length]));
+			
 		}
 	}
 

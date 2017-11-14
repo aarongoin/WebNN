@@ -1,4 +1,6 @@
-var Model = require("./Model");
+var Model = require("./Model"),
+	TF = require("../node_modules/tensorfire/src/index"),
+	GL = TF.createGL();
 
 function GET(path, responseType, callback) {
 	var r = new XMLHttpRequest();
@@ -63,32 +65,33 @@ function POST(path, contentType, body) {
 		net,
 		model;
 
+	Model = Model(TF, GL);
+
 	function Train(weights, batch) {
 		var delta = 0;
-		var e = net.log_rate;
 
 		model = new Model(net, weights);
 
 		model.afterIteration = function(model, iteration) {
-			if (--e > 0) return;
 			// send training logs to server
-			PUT("./log/" + net.id, "text", ""+(net.current_iteration + iteration)+","+model.loss);
-			e = net.log_rate;
+			PUT("./log/" + net.id, "text", ""+net.weights_version+","+model.loss);
 			//console.log("Iteration: " + iteration + " Loss: " + model.loss);
 		};
 
 		delta = window.performance.now();
 		model.train(net.learning_rate, net.iterations, batch.x, batch.y, function(model) {
 			delta = window.performance.now() - delta;
-			console.log("Time to train " + net.iteration + " iteration: " + (delta / 1000) + " seconds");
+			console.log("Time to train: " + (delta / 1000) + " seconds");
 			// post results to server
 			PUT("./weights/" + net.id, "arraybuffer", model.save());
-			net.current_iteration++;
+			net.weights_version++;
 			update();
 		});
 	}
 
+
 	function withModel(weights) {
+
 		// request training data
 		GET("./data/" + net.id, "arraybuffer", function(data) {
 
@@ -119,15 +122,6 @@ function POST(path, contentType, body) {
 			POST("./close/" + net.id, "string")
 		};
 		
-
-		if (net.get_weights) {
-			// request model weights
-			update();
-		} else {
-			// generate random weights
-			withModel(null);
-		}
-
-		
+		update();
 	});
 })();

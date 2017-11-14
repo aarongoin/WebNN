@@ -15,16 +15,19 @@ UUID = (function(){
 		return id;
 	};
 })(),
-MERGER = require("./merge");
+MERGER = require("./merge"),
+VALIDATOR = require("./validate");
 //fork = require("child-process").fork;
 
 var
-sinceRefresh = null,
+sinceRefresh = {},
 currentModel = {},
+trainingMeta = {},
 modelPath = "",
 num_clients = 0,
 paths = {},
 Merger = null,
+Validator = null,
 longPoll = null,
 shouldQuit = false,
 
@@ -41,6 +44,7 @@ loadLogs = function() {
 	var log_directory = "./models/" + currentModel.model + "/version/" + currentModel.version + "/logs/";
 	//console.log("sinceRefresh: " + sinceRefresh);
 	FS.readdir(log_directory, function(error, files) {
+		if (error) throw error;
 		var length = files.length;
 
 		if (length == 1) return;
@@ -89,7 +93,6 @@ Routes = {
 			FS.readFile('./master/master.html', 'utf8', function(error, data) {
 				if (error) throw error;
 				else {
-					sinceRefresh = null;
 					response.writeHead(200, {"Content-Type": "text/html"});
 					response.write(data);
 					response.end();
@@ -111,28 +114,40 @@ Routes = {
 	},
 	"/train": { // request model to be the one trained
 		"PUT": function(request, response, verbose) {
-			var train = JSON.parse(request.body);
+			var train = JSON.parse(request.body),
+				data;
 			modelPath = "./models/" + train.model + "/version/" + train.version + "/";
 			// TODO: save currentModel to disk if switching
-			data = FS.readFileSync(modelPath + "model.json", 'utf8');
-			
-			//if (Merger !== null) Merger.save();
-			Merger = new MERGER(modelPath + "current");
 
+			// loading in training metadata
+			if (FS.existsSync(modelPath + "training.json")) data = FS.readFileSync(modelPath + "training.json", 'utf8');
+			else data = FS.readFileSync("./models/" + train.model + "/training.json");
+			trainingMeta = JSON.parse(data);
+			
+			Validator = new VALIDATOR(modelPath, "./models/" + train.model + "/test/", null, trainingMeta);
+			if (trainingMeta.weights_version === -1) {
+				// write random weights to disk
+				FS.writeFileSync(modelPath + "weights", Buffer.from(Validator.save()), "binary");
+				trainingMeta.weights_version = 0;
+			}
+			//if (Merger !== null) Merger.save();
+			Merger = new MERGER(modelPath + "weights", 10);
+
+			data = FS.readFileSync(modelPath + "model.json", 'utf8');
 			currentModel = JSON.parse(data);
+			console.log(currentModel.model + " version: " + currentModel.version + "\n");
 			response.writeHead(200);
 			response.end();
-			sinceRefresh = null;
+			loadLogs();
 		},
 		"GET": function(request, response, verbose) {
-			if (sinceRefresh === null) loadLogs();
 			longPoll = response;
 		}
 	},
 	"/stop": {
 		"PUT": function(request, response, verbose) {
-			Merger.save();
 			shouldQuit = true;
+			onStop();
 		}
 	},
 
@@ -179,14 +194,14 @@ Routes = {
 			var id = UUID();
 
 			paths[id] = {
-				root: currentModel.root,
-				iteration: currentModel.current_iteration,
+				weights_version: trainingMeta.weights_version,
 				data: "./models/" + currentModel.model + "/data/",
 				path: "./models/" + currentModel.model + "/version/" + currentModel.version + "/",
 				log: "./models/" + currentModel.model + "/version/" + currentModel.version + "/logs/" + id
 			};
 
 			currentModel.id = id;
+			currentModel.weights_version = trainingMeta.weights_version;
 			num_clients++;
 			CreateRoutes(id, currentModel.model, currentModel.version);
 
@@ -206,8 +221,6 @@ DeleteRoutes = function(id) {
 
 	num_clients--;
 	paths[id] = undefined;
-
-	if (num_clients === 0) Server.stop();
 },
 
 CreateRoutes = function(id) {
@@ -215,11 +228,12 @@ CreateRoutes = function(id) {
 	Routes["/data/" + id] = { // get data for the model
 		"GET": function(request, response, verbose) {
 			// data: <Buffer> [ batchSize, batchX, batchY ]
-			currentModel.last_batch++;
-			if (currentModel.last_batch === currentModel.batches) {
-				currentModel.last_batch = 0;
+			trainingMeta.last_training++;
+			if (trainingMeta.last_training === trainingMeta.training_minibatches) {
+				trainingMeta.last_training = 0;
+				trainingMeta.epochs_trained++;
 			}
-			FS.readFile(paths[id].data + currentModel.last_batch, function(error, data) {
+			FS.readFile(paths[id].data + trainingMeta.last_training, function(error, data) {
 				if (error) throw error;
 				else {
 					response.writeHead(200, {"Content-Type": "arraybuffer"});
@@ -249,7 +263,14 @@ CreateRoutes = function(id) {
 			response.end();
 		},
 		"PUT": function(request, response, verbose) {
-			var staleness = (currentModel.root - paths[id].root) + 1; // staleness >= 1
+			var staleness;
+
+			if (!paths[id]) {
+				response.end();
+				return;
+			}
+
+			staleness = (trainingMeta.weights_version - paths[id].weights_version) + 1; // staleness >= 1
 			// integrate data into model
 			Merger.merge(new Float32Array(new Uint8Array(request.body).buffer), ( 1 / (staleness * num_clients)));
 			
@@ -260,10 +281,14 @@ CreateRoutes = function(id) {
 			}
 			response.end();
 			
-			paths[id].root = ++currentModel.root;
-			currentModel.current_iteration += currentModel.iterations;
-			if (currentModel.get_weights == false) currentModel.get_weights = true;
-			Merger.save();
+			trainingMeta.weights_version++;
+			paths[id].weights_version = trainingMeta.weights_version;
+			if (Merger.shouldValidate) Validator.validateWeights(Merger.weights.read().data, function(loss) {
+				if (!paths[id]) return;
+				FS.appendFile(paths[id].path + "logs/validation", ( trainingMeta.weights_version + "," + loss + "," + (new Date()).toISOString() + "\n" ), function(error) { if (error) throw error; });
+				sinceRefresh["validation"] = sinceRefresh["validation"] || [];
+				sinceRefresh["validation"].push({x: trainingMeta.weights_version, y: loss});
+			});
 
 			if (shouldQuit) DeleteRoutes(id);
 		}
@@ -279,12 +304,10 @@ CreateRoutes = function(id) {
 					response.writeHead(200);
 					response.end();
 
-					if (sinceRefresh !== null) {
-						sinceRefresh[id] = sinceRefresh[id] || [];
-						line = request.body.toString().toString().split(",");
-						sinceRefresh[id].push({x: Number(line[0]), y: Number(line[1])});
-						if (longPoll !== null) refreshServer();
-					}
+					sinceRefresh[id] = sinceRefresh[id] || [];
+					line = request.body.toString().toString().split(",");
+					sinceRefresh[id].push({x: Number(line[0]), y: Number(line[1])});
+					if (longPoll !== null) refreshServer();
 				}
 			});
 		}
@@ -292,16 +315,16 @@ CreateRoutes = function(id) {
 },
 
 onStop = function() {
+	Merger.save();
 	Server.stop();
+	FS.writeFileSync(modelPath + "training.json", JSON.stringify(trainingMeta), "utf8");
+	if (longPoll) longPoll.end();
 	console.log("Goodbye.");
-	FS.writeFileSync(modelPath + "model.json", JSON.stringify(currentModel), "utf8")
+	process.exit();
 };
 
-
-
-const Server = new SERVER(25749, Routes, true);
+const Server = new SERVER(25735, Routes, true);
 Server.start();
-
 
 // I read that this doesn't work on Windows (but did not verify)
 process.on('SIGINT', onStop);

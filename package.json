@@ -4,7 +4,7 @@
 	"description": "Project for distributed NN training using TensorFire.",
 	"author": "Aaron Goin <aaron.goin@wsu.edu>",
 	"scripts": {
-		"master": "npm run serve & open -a 'Google Chrome' 'http://localhost:25749/master'",
+		"master": "npm run serve & open -a 'Google Chrome' 'http://localhost:25735/master'",
 		"serve": "node ./server/main.js",
 		"build": "browserify ./client/client.js -t babelify -o ./client/calculon.js",
 		"dev": "watchify -d -v -t [ babelify --presets [ env ] ] -e ./client/client.js -o ./client/calculon.js"

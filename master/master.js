@@ -43,13 +43,14 @@ function POST(path, contentType, body) {
 
 	var chart;
 	var randomColor = function() {
-			return "rgb(" + (Math.random() * 256 >> 0) + "," + (Math.random() * 256 >> 0) + "," + (Math.random() * 256 >> 0) + ")";
+			return "rgb(" + ((Math.random() * 240 >> 0) + 16) + "," + ((Math.random() * 240 >> 0) + 16) + "," + ((Math.random() * 240 >> 0) + 16) + ")";
 		};
 
 	var shouldUpdate = true;
 
 	window.onbeforeunload = function() {
 		shouldUpdate = false;
+		PUT("./stop", "application/json", "");
 	}
 
 	PUT("./train", "application/json", JSON.stringify({model: "mnist", version: "1"}));
@@ -112,7 +113,7 @@ function POST(path, contentType, body) {
 					chart.data.datasets.push({
 						label: "Client " + client,
 						backgroundColor: "rgba(0, 0, 0, 0)",
-						borderColor: randomColor(),
+						borderColor: client == "validation" ? "rgb(0,0,0)" : randomColor(),
 						data: logs[client]
 					});
 				}

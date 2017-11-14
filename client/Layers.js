@@ -1,6 +1,6 @@
 var ndarray = require("ndarray"),
-	TF = require("../node_modules/tensorfire/src/index"),
-	GL = TF.createGL();
+	TF,
+	GL;
 
 // Standard Normal variate using Box-Muller transform.
 function random(mean, stdDev) {
@@ -9,13 +9,17 @@ function random(mean, stdDev) {
     var u = 0, v = 0;
     while(u === 0) u = Math.random(); //Converting [0,1) to (0,1)
     while(v === 0) v = Math.random();
+    //return 0.4;
     return (Math.sqrt( -2.0 * Math.log( u ) ) * Math.cos( 2.0 * Math.PI * v )) * stdDev + mean;
 }
 
 function generate(shape, bias) {
 	var result = new Float32Array(shape[0] * shape[1] + bias);
 	var l = -1;
-	while (++l < result.length) result[l] = random(0, shape[0]);
+	while (++l < result.length) {
+		result[l] = random(0, Math.sqrt(2 / shape[1]));
+	}
+	//console.log(result[0]);
 	return result;
 }
 
@@ -27,6 +31,7 @@ var Activation = {
 	"sigmoid": "o = 1.0 / (1.0 + exp(0.0 - n)); \n",
 	"tanh": "o = (2.0 / (1.0 + exp(-2.0 * n))) - 1.0; \n",
 	"softplus": "o = log(1.0 + exp(n)); \n",
+	"softmax": "float k = 0.0; \nfor(int i = 0; i < #(O.shape).x; i++){\nk += exp(O.read(i, pos.y));\n}\no = exp(n) / k; \n",
 	//"softsign": "o = n / (1.0 + abs(n)); \n"
 };
 var Derivative = {
@@ -37,6 +42,7 @@ var Derivative = {
 	"sigmoid": "d = o * ( 1.0 - o ); \n",
 	"tanh": "d = ( 1 - pow(o, 2.0) ); \n",
 	"softplus": "d = 1.0 - ( 1.0 / exp(o) ); \n",
+	"softmax": "d = o * ( 1.0 - o ); \n" // same as sigmoid?
 	//"softsign": "var = "
 };
 
@@ -76,6 +82,7 @@ function DenseLayer(layer, index) {
 					;
 	this.gradient 	= "uniform Tensor E; \n"
 					+ "uniform Tensor O; \n"
+					+ "uniform Tensor H; \n"
 					+ "float process(ivec4 pos) { \n"
 						+ "float d; \n"
 						+ "float o = O.read(pos); \n"
@@ -151,7 +158,7 @@ DenseLayer.prototype.train = function(error, learning_rate) {
 	//console.log("Calculon- error: " + error.read().data);
 	//console.log("Calculon- weights " + this.l + ": " + this.weights.read().data);
 
-	local.run(this.gradient, {E: error, O: this.output});
+	local.run(this.gradient, {E: error, O: this.output, H: this.weightedOutput});
 	//console.log("Calculon- localE: " + local.read().data);
 
 	// train weights
@@ -180,9 +187,9 @@ function LossMSE() {
 	this.lossF 	= "uniform Tensor G; \n"
 				+ "float process(ivec4 pos) { \n"
 					+ "float loss = 0.0; \n"
-					+ "for(int i = 0; i < #(G.shape).y; i++){ \n"
+					+ "for(int i = 0; i < #(G.shape).y; i++){ \n" /* iterate over each sample */
 						+ "float l = 0.0; \n"
-						+ "for(int j = 0; j < #(G.shape).x; j++){ \n"
+						+ "for(int j = 0; j < #(G.shape).x; j++){ \n" /* iterate over every output and calculate average */
 							+ "l += pow(float(G.read(j, i)), 2.0) / float(#(G.shape).x); \n"
 						+ "} \n"
 						+ "loss += l / float(#(G.shape).y); \n"
@@ -212,7 +219,61 @@ LossMSE.prototype.deltas = function(output, expect) {
 	return this.output;
 }
 
-module.exports = {
-	"dense": DenseLayer,
-	"mse": LossMSE,
+function CrossEntropy() {
+	// calculate loss gradients
+	this.grad 	= "uniform Tensor O; \n"
+				+ "uniform Tensor E; \n"
+				+ "float process(ivec4 pos) { \n"
+					+ "return 0.0 - E.read(pos) / O.read(pos); \n"
+				+ "} \n"
+				;
+
+	// calculate batch average loss
+	this.lossF 	= "uniform Tensor O; \n"
+				+ "uniform Tensor E; \n"
+				+ "float process(ivec4 pos) { \n"
+					+ "float loss = 0.0; \n"
+					+ "for(int i = 0; i < #(O.shape).y; i++){ \n" /* iterate over each sample */
+						+ "float l = 0.0; \n"
+						+ "for(int j = 0; j < #(O.shape).x; j++){ \n" /* iterate over every output and calculate average */
+							+ "l -= E.read(j, i) * log(O.read(j, i)); \n"
+						+ "} \n"
+						+ "loss = l / float(#(O.shape).y); \n"
+					+ "} \n"
+					+ "return loss; \n"
+				+ "} \n"
+				;
+
+	this.loss = new TF.OutputTensor(GL, [1]);
+	this.output = null;
+	this.batchLoss = 0.0;
 }
+CrossEntropy.prototype.deltas = function(output, expect) {
+	if (expect instanceof Float32Array)
+		expect = new TF.Tensor(GL, ndarray( expect, output.shape));
+
+	//console.log("Calculon- expected: " + expect.read().data);
+
+	this.output = new TF.OutputTensor(GL, output.shape);
+	this.output.run(this.grad, { O: output, E: expect });
+	//console.log("Calculon- gradient: " + this.output.read().data);
+
+	this.loss.run(this.lossF, { O: output, E: expect });
+	console.log(this.loss.read());
+
+	this.batchLoss = this.loss.read().data[0];
+
+	return this.output;
+}
+
+module.exports = module.exports = function(tensorfire, glContext) {
+
+	TF = tensorfire;
+	GL = glContext;
+
+	return {
+		"dense": DenseLayer,
+		"mse": LossMSE,
+		"xentropy": CrossEntropy
+	};
+};
