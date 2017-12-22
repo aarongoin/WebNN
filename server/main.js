@@ -256,14 +256,24 @@ CreateRoutes = function(id) {
 
 	Routes["/weights/" + id] = {
 		"GET": function(request, response, verbose) {
+			var temp;
 			// send weights for layers
 			// data: <Buffer> [ ...layers ]
+			trainingMeta.last_training++;
+			if (trainingMeta.last_training === trainingMeta.training_minibatches) {
+				trainingMeta.last_training = 0;
+				trainingMeta.epochs_trained++;
+			}
 			response.writeHead(200, {"Content-Type": "arraybuffer"});
+			temp = new Float32Array(1);
+			temp[0] = trainingMeta.weights_version;
+			response.write(Buffer.from(temp.buffer));
 			response.write(Buffer.from(Merger.weights.read().data.buffer));
+			response.write(FS.readFileSync(paths[id].data + trainingMeta.last_training));
 			response.end();
 		},
 		"PUT": function(request, response, verbose) {
-			var staleness;
+			var staleness, temp;
 
 			if (!paths[id]) {
 				response.end();
@@ -274,20 +284,36 @@ CreateRoutes = function(id) {
 			// integrate data into model
 			Merger.merge(new Float32Array(new Uint8Array(request.body).buffer), ( 1 / (staleness * num_clients)));
 			
+			trainingMeta.weights_version++;
 			if (!shouldQuit) {
+
+				trainingMeta.last_training++;
+				if (trainingMeta.last_training === trainingMeta.training_minibatches) {
+					trainingMeta.last_training = 0;
+					trainingMeta.epochs_trained++;
+				}
+
 				response.writeHead(200, {"Content-Type": "arraybuffer"});
-				response.write(Buffer.from(Merger.weights.read().data.buffer));
-				
+
+				temp = new Float32Array(1);
+				if (staleness > 1) {
+					temp[0] = trainingMeta.weights_version;
+					response.write(Buffer.from(temp.buffer));
+					response.write(Buffer.from(Merger.weights.read().data.buffer));
+				} else {
+					temp[0] = -1;
+					response.write(Buffer.from(temp.buffer));
+				}
+				response.write(FS.readFileSync(paths[id].data + trainingMeta.last_training));
 			}
 			response.end();
 			
-			trainingMeta.weights_version++;
 			paths[id].weights_version = trainingMeta.weights_version;
 			if (Merger.shouldValidate) Validator.validateWeights(Merger.weights.read().data, function(loss) {
 				if (!paths[id]) return;
-				FS.appendFile(paths[id].path + "logs/validation", ( trainingMeta.weights_version + "," + loss + "," + (new Date()).toISOString() + "\n" ), function(error) { if (error) throw error; });
+				FS.appendFile(paths[id].path + "logs/validation", ( paths[id].weights_version + "," + loss + "," + (new Date()).toISOString() + "\n" ), function(error) { if (error) throw error; });
 				sinceRefresh["validation"] = sinceRefresh["validation"] || [];
-				sinceRefresh["validation"].push({x: trainingMeta.weights_version, y: loss});
+				sinceRefresh["validation"].push({x: paths[id].weights_version, y: loss});
 			});
 
 			if (shouldQuit) DeleteRoutes(id);
@@ -299,13 +325,12 @@ CreateRoutes = function(id) {
 			FS.appendFile(paths[id].path + "logs/" + id, request.body, function(error) {
 				if (error) throw error;
 				else {
-					FS.appendFile(paths[id].path + "logs/" + id, ( "," + (new Date()).toISOString() + "\n" ), function(error) { if (error) throw error; });
 					var line;
 					response.writeHead(200);
 					response.end();
 
 					sinceRefresh[id] = sinceRefresh[id] || [];
-					line = request.body.toString().toString().split(",");
+					line = request.body.toString().split(",");
 					sinceRefresh[id].push({x: Number(line[0]), y: Number(line[1])});
 					if (longPoll !== null) refreshServer();
 				}
@@ -323,7 +348,7 @@ onStop = function() {
 	process.exit();
 };
 
-const Server = new SERVER(25735, Routes, true);
+const Server = new SERVER(8888, Routes, true);
 Server.start();
 
 // I read that this doesn't work on Windows (but did not verify)

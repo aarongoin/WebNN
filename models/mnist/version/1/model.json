@@ -2,10 +2,10 @@
 	"model": "mnist",
 	"version": "1",
 	"iterations": 1,
-	"learning_rate": 0.1,
-	"loss": "mse",
+	"learning_rate": 0.5,
 	"layers": [
-		{ "type":"dense", "activation":"sigmoid", "shape":[100,784], "bias":true },
-		{ "type":"dense", "activation":"sigmoid", "shape":[10,100], "bias":true }
+		{ "type":"dense", "activation":"tanh", "shape":[64,784], "bias":true },
+		{ "type":"dense", "activation":"tanh", "shape":[10,64], "bias":true },
+		{ "type":"output", "activation":"softmax", "loss": "xentropy" }
 	]
 }

@@ -3,7 +3,7 @@ FS = require("fs"),
 TF = require("tensorfire"),
 GL = require("gl")(512, 512, { preserveDrawingBuffer: true });
 
-var Model = require("../client/Model")(TF, GL);
+var Model = require("../lib/Model")(TF, GL);
 
 module.exports = class Validator extends Model {
 	constructor(modelpath, testpath, weights, trainingMeta) {

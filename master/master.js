@@ -81,7 +81,7 @@ function POST(path, contentType, body) {
 			options: {
 				title: {
 					display: true,
-					text: "Training Loss for MNIST Model",
+					text: "Training Accuracy for MNIST Model",
 					fontSize: 20,
 					padding: 20
 				},
