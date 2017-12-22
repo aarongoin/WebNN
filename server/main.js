@@ -14,13 +14,76 @@ UUID = (function(){
 		}
 		return id;
 	};
-})();
+})(),
+MERGER = require("./merge"),
+VALIDATOR = require("./validate");
+//fork = require("child-process").fork;
 
 var
-refreshing = false,
-sinceRefresh = null,
+sinceRefresh = {},
 currentModel = {},
+trainingMeta = {},
+modelPath = "",
+num_clients = 0,
 paths = {},
+Merger = null,
+Validator = null,
+longPoll = null,
+shouldQuit = false,
+
+refreshServer = function() {
+	longPoll.writeHead(200, {"Content-Type": "application/json"});
+	longPoll.write(JSON.stringify(sinceRefresh));
+	longPoll.end();
+	sinceRefresh = {};
+	longPoll = null;
+},
+
+loadLogs = function() {
+	// get logs for currentModel and send data to Master
+	var log_directory = "./models/" + currentModel.model + "/version/" + currentModel.version + "/logs/";
+	//console.log("sinceRefresh: " + sinceRefresh);
+	FS.readdir(log_directory, function(error, files) {
+		if (error) throw error;
+		var length = files.length;
+
+		if (length == 1) return;
+
+		sinceRefresh = {};
+
+		files.forEach(function(filename, index) {
+			if (filename === ".DS_Store") {
+				length--;
+				return;
+			}
+
+			sinceRefresh[filename] = [];
+
+			var rl, firstLine = true;
+
+			rl = READLINE.createInterface({
+				input : FS.createReadStream(log_directory + filename),
+				terminal: false
+			});
+
+			rl.on('close', function() {
+				length--;
+				if (length === 0) {
+					refreshServer();
+				}
+			});
+
+			rl.on('line', function(line) {
+				if (firstLine) {
+					firstLine = false;
+					return;
+				}
+				line = line.split(",");
+				sinceRefresh[filename].push({x: Number(line[0]), y: Number(line[1])});
+			});
+		});
+	});
+},
 
 Routes = {
 
@@ -51,73 +114,40 @@ Routes = {
 	},
 	"/train": { // request model to be the one trained
 		"PUT": function(request, response, verbose) {
-			var train = JSON.parse(request.body);
+			var train = JSON.parse(request.body),
+				data;
+			modelPath = "./models/" + train.model + "/version/" + train.version + "/";
 			// TODO: save currentModel to disk if switching
-			data = FS.readFileSync("./models/" + train.model + "/version/" + train.version + "/model.json", 'utf8');
-				
+
+			// loading in training metadata
+			if (FS.existsSync(modelPath + "training.json")) data = FS.readFileSync(modelPath + "training.json", 'utf8');
+			else data = FS.readFileSync("./models/" + train.model + "/training.json");
+			trainingMeta = JSON.parse(data);
+			
+			Validator = new VALIDATOR(modelPath, "./models/" + train.model + "/test/", null, trainingMeta);
+			if (trainingMeta.weights_version === -1) {
+				// write random weights to disk
+				FS.writeFileSync(modelPath + "weights", Buffer.from(Validator.save()), "binary");
+				trainingMeta.weights_version = 0;
+			}
+			//if (Merger !== null) Merger.save();
+			Merger = new MERGER(modelPath + "weights", 10);
+
+			data = FS.readFileSync(modelPath + "model.json", 'utf8');
 			currentModel = JSON.parse(data);
+			console.log(currentModel.model + " version: " + currentModel.version + "\n");
 			response.writeHead(200);
 			response.end();
-			sinceRefresh = null;
+			loadLogs();
 		},
 		"GET": function(request, response, verbose) {
-			// get logs for currentModel and send data to Master
-			var log_directory = "./models/" + currentModel.model + "/version/" + currentModel.version + "/logs/";
-			//console.log("sinceRefresh: " + sinceRefresh);
-			if (sinceRefresh === null) FS.readdir(log_directory, function(error, files) {
-				var length = files.length;
-				refreshing = true;
-
-				response.writeHead(200, {"Content-Type": "application/json"});
-
-				if (length == 1) {
-					response.write("{}");
-					response.end();
-					return;
-				}
-
-				sinceRefresh = {};
-
-				files.forEach(function(filename, index) {
-					if (filename === ".DS_Store") {
-						length--;
-						return;
-					}
-
-					sinceRefresh[filename] = [];
-
-					var rl, firstLine = true;
-
-					rl = READLINE.createInterface({
-						input : FS.createReadStream(log_directory + filename),
-						terminal: false
-					});
-
-					rl.on('close', function() {
-						length--;
-						if (length === 0) {
-							response.write(JSON.stringify(sinceRefresh));
-							response.end();
-							sinceRefresh = {};
-							refreshing = false;
-						}
-					});
-
-					rl.on('line', function(line) {
-						if (firstLine) {
-							firstLine = false;
-							return;
-						}
-						line = line.split(",");
-						sinceRefresh[filename].push({x: Number(line[0]), y: Number(line[1])});
-					});
-				});
-			});
-			else if (!refreshing) {
-				response.write(JSON.stringify(sinceRefresh));
-				response.end();
-				sinceRefresh = {};
-			}
+			longPoll = response;
+		}
+	},
+	"/stop": {
+		"PUT": function(request, response, verbose) {
+			shouldQuit = true;
+			onStop();
 		}
 	},
 
@@ -164,13 +194,15 @@ Routes = {
 			var id = UUID();
 
 			paths[id] = {
-				iteration: currentModel.current_iteration,
+				weights_version: trainingMeta.weights_version,
 				data: "./models/" + currentModel.model + "/data/",
 				path: "./models/" + currentModel.model + "/version/" + currentModel.version + "/",
 				log: "./models/" + currentModel.model + "/version/" + currentModel.version + "/logs/" + id
 			};
 
 			currentModel.id = id;
+			currentModel.weights_version = trainingMeta.weights_version;
+			num_clients++;
 			CreateRoutes(id, currentModel.model, currentModel.version);
 
 			response.writeHead(200, {"Content-Type": "application/json"});
@@ -180,16 +212,28 @@ Routes = {
 	}
 },
 
+DeleteRoutes = function(id) {
+	// remove routes
+	delete Routes["/model/" + id];
+	delete Routes["/log/" + id];
+	delete Routes["/data/" + id];
+	delete Routes["/close/" + id];
+
+	num_clients--;
+	paths[id] = undefined;
+},
+
 CreateRoutes = function(id) {
 
 	Routes["/data/" + id] = { // get data for the model
 		"GET": function(request, response, verbose) {
 			// data: <Buffer> [ batchSize, batchX, batchY ]
-			currentModel.last_batch++;
-			if (currentModel.last_batch === currentModel.batches) {
-				currentModel.last_batch = 0;
+			trainingMeta.last_training++;
+			if (trainingMeta.last_training === trainingMeta.training_minibatches) {
+				trainingMeta.last_training = 0;
+				trainingMeta.epochs_trained++;
 			}
-			FS.readFile(paths[id].data + currentModel.last_batch, function(error, data) {
+			FS.readFile(paths[id].data + trainingMeta.last_training, function(error, data) {
 				if (error) throw error;
 				else {
 					response.writeHead(200, {"Content-Type": "arraybuffer"});
@@ -203,11 +247,7 @@ CreateRoutes = function(id) {
 	Routes["/close/" + id] = { // done training
 		"POST": function(request, response, verbose) {
 			
-			// remove routes
-			delete Routes["/model/" + id];
-			delete Routes["/log/" + id];
-			delete Routes["/data/" + id];
-			delete Routes["/close/" + id];
+			DeleteRoutes(id);
 
 			response.writeHead(200);
 			response.end();
@@ -216,28 +256,67 @@ CreateRoutes = function(id) {
 
 	Routes["/weights/" + id] = {
 		"GET": function(request, response, verbose) {
+			var temp;
 			// send weights for layers
 			// data: <Buffer> [ ...layers ]
-			FS.readFile(paths[id].path + "current", function(error, data) {
-				if (error) throw error;
-				else {
-					response.writeHead(200, {"Content-Type": "arraybuffer"});
-					response.write(data);
-					response.end();
-				}
-			});
+			trainingMeta.last_training++;
+			if (trainingMeta.last_training === trainingMeta.training_minibatches) {
+				trainingMeta.last_training = 0;
+				trainingMeta.epochs_trained++;
+			}
+			response.writeHead(200, {"Content-Type": "arraybuffer"});
+			temp = new Float32Array(1);
+			temp[0] = trainingMeta.weights_version;
+			response.write(Buffer.from(temp.buffer));
+			response.write(Buffer.from(Merger.weights.read().data.buffer));
+			response.write(FS.readFileSync(paths[id].data + trainingMeta.last_training));
+			response.end();
 		},
 		"PUT": function(request, response, verbose) {
-			FS.appendFile(paths[id].path + "weights/" + id, request.body, function(error) {
-				if (error) throw error;
-				else {
-					// TODO: integrate data into model
-					// TODO: send new batch data
+			var staleness, temp;
 
-					response.writeHead(200);
-					response.end();
+			if (!paths[id]) {
+				response.end();
+				return;
+			}
+
+			staleness = (trainingMeta.weights_version - paths[id].weights_version) + 1; // staleness >= 1
+			// integrate data into model
+			Merger.merge(new Float32Array(new Uint8Array(request.body).buffer), ( 1 / (staleness * num_clients)));
+			
+			trainingMeta.weights_version++;
+			if (!shouldQuit) {
+
+				trainingMeta.last_training++;
+				if (trainingMeta.last_training === trainingMeta.training_minibatches) {
+					trainingMeta.last_training = 0;
+					trainingMeta.epochs_trained++;
 				}
+
+				response.writeHead(200, {"Content-Type": "arraybuffer"});
+
+				temp = new Float32Array(1);
+				if (staleness > 1) {
+					temp[0] = trainingMeta.weights_version;
+					response.write(Buffer.from(temp.buffer));
+					response.write(Buffer.from(Merger.weights.read().data.buffer));
+				} else {
+					temp[0] = -1;
+					response.write(Buffer.from(temp.buffer));
+				}
+				response.write(FS.readFileSync(paths[id].data + trainingMeta.last_training));
+			}
+			response.end();
+			
+			paths[id].weights_version = trainingMeta.weights_version;
+			if (Merger.shouldValidate) Validator.validateWeights(Merger.weights.read().data, function(loss) {
+				if (!paths[id]) return;
+				FS.appendFile(paths[id].path + "logs/validation", ( paths[id].weights_version + "," + loss + "," + (new Date()).toISOString() + "\n" ), function(error) { if (error) throw error; });
+				sinceRefresh["validation"] = sinceRefresh["validation"] || [];
+				sinceRefresh["validation"].push({x: paths[id].weights_version, y: loss});
 			});
+
+			if (shouldQuit) DeleteRoutes(id);
 		}
 	};
 
@@ -246,24 +325,31 @@ CreateRoutes = function(id) {
 			FS.appendFile(paths[id].path + "logs/" + id, request.body, function(error) {
 				if (error) throw error;
 				else {
-					FS.appendFile(paths[id].path + "logs/" + id, "," + (new Date()).toISOString() + "\n");
 					var line;
 					response.writeHead(200);
 					response.end();
 
-					if (sinceRefresh !== null) {
-						sinceRefresh[id] = sinceRefresh[id] || [];
-						line = request.body.toString().toString().split(",");
-						sinceRefresh[id].push({x: Number(line[0]), y: Number(line[1])})
-					}
+					sinceRefresh[id] = sinceRefresh[id] || [];
+					line = request.body.toString().split(",");
+					sinceRefresh[id].push({x: Number(line[0]), y: Number(line[1])});
+					if (longPoll !== null) refreshServer();
 				}
 			});
 		}
 	}
-}
+},
 
-const Server = new SERVER(8888, Routes);
+onStop = function() {
+	Merger.save();
+	Server.stop();
+	FS.writeFileSync(modelPath + "training.json", JSON.stringify(trainingMeta), "utf8");
+	if (longPoll) longPoll.end();
+	console.log("Goodbye.");
+	process.exit();
+};
+
+const Server = new SERVER(8888, Routes, true);
 Server.start();
 
 // I read that this doesn't work on Windows (but did not verify)
-process.on('SIGINT', Server.stop);
+process.on('SIGINT', onStop);

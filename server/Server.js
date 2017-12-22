@@ -1,7 +1,8 @@
 const
 	HTTP = require("http"),
 	URL = require("url"),
-	BIND = require("./bind.js");
+	BIND = require("./bind.js"),
+	IO = require("socket.io");
 
 var INSTANCE;
 
@@ -10,6 +11,7 @@ module.exports = class Server {
 		this.port = port;
 		this.routes = routes;
 		this.verbose = verbose;
+		this.io = null;
 
 		BIND(this);
 
@@ -18,6 +20,13 @@ module.exports = class Server {
 
 	start() {
 		this.server = HTTP.createServer(this.handle);
+		this.io = IO(this.server);
+		this.io.on("connection", function(socket) {
+			console.log("Socket connected!");
+			socket.on("disconnect", function() {
+				console.log("Socket disconnected.");
+			});
+		});
 		this.server.listen(this.port);
 		if (this.verbose)
 			console.log("Server started at port " + this.port + ".");
@@ -33,17 +42,16 @@ module.exports = class Server {
 		var reqUrl = URL.parse(request.url),
 			body = [];
 
-		if (this.verbose)
-			console.log("\n" + request.method + " Request for " + reqUrl.pathname + " recieved.");
+		if (this.verbose) console.log("\n" + request.method + " Request for " + reqUrl.pathname + " recieved.");
 
-		if (request.method == "PUT") {
+		if (request.method === "PUT") {
 			request.on("data", function(chunk) {
 				body.push(chunk);
 			}).on("end", function() {
 				request.body = Buffer.concat(body);
 				
 				if (INSTANCE.routes[reqUrl.pathname] && INSTANCE.routes[reqUrl.pathname][request.method]) {
-					response = INSTANCE.routes[reqUrl.pathname][request.method](request, response);
+					INSTANCE.routes[reqUrl.pathname][request.method](request, response);
 				} else {
 					response.writeHead(404);
 					response.end();
@@ -52,7 +60,8 @@ module.exports = class Server {
 
 		} else {
 			if (this.routes[reqUrl.pathname] && this.routes[reqUrl.pathname][request.method]) {
-				response = this.routes[reqUrl.pathname][request.method](request, response, this.verbose);
+
+				this.routes[reqUrl.pathname][request.method](request, response, this.verbose);
 			} else {
 				response.writeHead(404);
 				response.end();

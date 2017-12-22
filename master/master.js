@@ -43,10 +43,17 @@ function POST(path, contentType, body) {
 
 	var chart;
 	var randomColor = function() {
-			return "rgb(" + (Math.random() * 256 >> 0) + "," + (Math.random() * 256 >> 0) + "," + (Math.random() * 256 >> 0) + ")";
+			return "rgb(" + ((Math.random() * 240 >> 0) + 16) + "," + ((Math.random() * 240 >> 0) + 16) + "," + ((Math.random() * 240 >> 0) + 16) + ")";
 		};
 
-	PUT("./train", "application/json", JSON.stringify({model: "xor", version: "1"}));
+	var shouldUpdate = true;
+
+	window.onbeforeunload = function() {
+		shouldUpdate = false;
+		PUT("./stop", "application/json", "");
+	}
+
+	PUT("./train", "application/json", JSON.stringify({model: "mnist", version: "1"}));
 
 	GET("./train", "application/json", function(logs) {
 
@@ -74,17 +81,23 @@ function POST(path, contentType, body) {
 			options: {
 				title: {
 					display: true,
-					text: "Training Loss for XOR Model",
+					text: "Training Accuracy for MNIST Model",
 					fontSize: 20,
 					padding: 20
 				},
 				legend: {
 					position: 'right'
+				},
+				elements: {
+					line: {
+						tension: 0, // disables bezier curves
+					}
 				}
 			}
 		});
 
-		window.setInterval( function() {
+		function update() {
+			console.log("updating...");
 			GET("./train", "application/json", function(logs) {
 				logs = JSON.parse(logs);
 				chart.data.datasets.forEach(function(dataset) {
@@ -100,14 +113,16 @@ function POST(path, contentType, body) {
 					chart.data.datasets.push({
 						label: "Client " + client,
 						backgroundColor: "rgba(0, 0, 0, 0)",
-						borderColor: randomColor(),
+						borderColor: client == "validation" ? "rgb(0,0,0)" : randomColor(),
 						data: logs[client]
 					});
 				}
 
 				chart.update();
-
+				if (shouldUpdate) update();
 			});
-		}, 100);
+		}
+
+		update();
 	});
 })();
