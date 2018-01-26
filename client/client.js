@@ -66,7 +66,7 @@ function POST(path, contentType, body) {
 		iterations,
 		times = {
 			requested: null,	// model weights and data request sent
-			recieved: null,		// model data & weights recieved from server
+			received: null,		// model data & weights received from server
 			loaded: null, 		// model weights loaded
 			trained: null, 		// model finished training
 			updated: null 		// model updates sent
@@ -76,7 +76,8 @@ function POST(path, contentType, body) {
 
 	function update(arraybuffer) {
 
-		var iteration = new Float32Array(arraybuffer, 0, 1),
+		var iteration = new Float32Array(arraybuffer, 0, 1)[0],
+			testView = new Float32Array(arraybuffer),
 			view,
 			weights,
 			data,
@@ -84,23 +85,24 @@ function POST(path, contentType, body) {
 			i,
 			batch;
 
-		times.recieved = window.performance.now();
+		console.log(testView);
+		times.received = window.performance.now();
 
 		view = new Float32Array(arraybuffer, 4);
 
 
-		if (iteration[0] >= 0) { // includes new weights and data
-			iterations = iteration[0];
+		if (iteration >= 0) { // includes new weights and data
+			iterations = iteration;
 			i = model.size;
 			weights = view.subarray(0, i);
 			len = view[i] * net.layers[0].shape[1]; // first float is number of samples in this batch
-			len += i + 1;
+			len += ++i;
 			batch = {
 				x: view.subarray(i, len),
 				y: view.subarray(len)
 			};
 
-			model.load(weights.buffer);
+			model.load(weights);
 
 		} else { // weights are fresh, so data only
 			iterations++;
@@ -113,22 +115,19 @@ function POST(path, contentType, body) {
 
 		// TRAIN
 		times.loaded = window.performance.now();
-		model.train(net.learning_rate, net.iterations, batch.x, batch.y, function(model) {
-			var r = 0, log = "";
+		model.train(net.learning_rate, net.iterations, batch.x, batch.y, function(weights, accuracy) {
+			var r = 0, log = "", w = new Float32Array(weights);
 			times.trained = window.performance.now();
 			//console.log("Time to train: " + (delta / 1000) + " seconds");
 			// post results to server
-			
-			PUT("./weights/" + net.id, "arraybuffer", model.save(), update);
-			r = times.updated = window.performance.now();
-
+			PUT("./weights/" + net.id, "arraybuffer", weights, update);
+			r = window.performance.now();
 			log += net.weights_version + ",";
-			log += model.loss + ",";
+			log += accuracy + ",";
 			log += times.requested + ",";
-			log += times.recieved + ",";
+			log += times.received + ",";
 			log += times.loaded + ",";
-			log += times.trained + ",";
-			log += times.updated + "\n";
+			log += times.trained + "\n";
 			// send time and training log to server
 			PUT("./log/" + net.id, "text", log);
 			times.requested = r;

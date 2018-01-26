@@ -1,8 +1,8 @@
 {
 	"epochs_trained":0,
 	"weights_version":-1,
-	"training_minibatches":1874,
+	"training_minibatches":1,
 	"last_training":-1,
-	"validation_minibatches":156,
+	"validation_minibatches":1,
 	"last_validation":-1
 }

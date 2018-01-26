@@ -1,0 +1,10 @@
+{
+	"model": "dummy",
+	"version": "1",
+	"iterations": 1,
+	"learning_rate": 0.01,
+	"layers": [
+		{ "type":"dense", "activation":"tanh", "shape":[1,6], "bias":true },
+		{ "type":"output", "activation":"none", "loss": "mse" }
+	]
+}

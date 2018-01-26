@@ -20,7 +20,7 @@ VALIDATOR = require("./validate");
 //fork = require("child-process").fork;
 
 var
-sinceRefresh = {},
+sinceRefresh = { "view_at_scale": [{x: 0, y: 1}, {x: 0, y: 0}, {x: 3748, y: 1}] },
 currentModel = {},
 trainingMeta = {},
 modelPath = "",
@@ -49,15 +49,17 @@ loadLogs = function() {
 
 		if (length == 1) return;
 
-		sinceRefresh = {};
+		sinceRefresh = { "view_at_scale": [{x: 0, y: 1}, {x: 0, y: 0}, {x: 3748, y: 1}] };
 
 		files.forEach(function(filename, index) {
+			var id;
 			if (filename === ".DS_Store") {
 				length--;
 				return;
 			}
+			id = filename.split(".")[0];
 
-			sinceRefresh[filename] = [];
+			sinceRefresh[id] = [];
 
 			var rl, firstLine = true;
 
@@ -79,7 +81,7 @@ loadLogs = function() {
 					return;
 				}
 				line = line.split(",");
-				sinceRefresh[filename].push({x: Number(line[0]), y: Number(line[1])});
+				sinceRefresh[id].push({x: Number(line[0]), y: Number(line[1])});
 			});
 		});
 	});
@@ -124,6 +126,10 @@ Routes = {
 			else data = FS.readFileSync("./models/" + train.model + "/training.json");
 			trainingMeta = JSON.parse(data);
 			
+			data = FS.readFileSync(modelPath + "model.json", 'utf8');
+			currentModel = JSON.parse(data);
+			console.log(currentModel.model + " version: " + currentModel.version + "\n");
+
 			Validator = new VALIDATOR(modelPath, "./models/" + train.model + "/test/", null, trainingMeta);
 			if (trainingMeta.weights_version === -1) {
 				// write random weights to disk
@@ -131,11 +137,9 @@ Routes = {
 				trainingMeta.weights_version = 0;
 			}
 			//if (Merger !== null) Merger.save();
-			Merger = new MERGER(modelPath + "weights", 10);
+			console.log("Merger opening: " + modelPath + "weights");
+			Merger = new MERGER(modelPath + "weights", 10, Validator.size);
 
-			data = FS.readFileSync(modelPath + "model.json", 'utf8');
-			currentModel = JSON.parse(data);
-			console.log(currentModel.model + " version: " + currentModel.version + "\n");
 			response.writeHead(200);
 			response.end();
 			loadLogs();
@@ -199,6 +203,7 @@ Routes = {
 				path: "./models/" + currentModel.model + "/version/" + currentModel.version + "/",
 				log: "./models/" + currentModel.model + "/version/" + currentModel.version + "/logs/" + id
 			};
+			console.log(paths);
 
 			currentModel.id = id;
 			currentModel.weights_version = trainingMeta.weights_version;
@@ -208,6 +213,8 @@ Routes = {
 			response.writeHead(200, {"Content-Type": "application/json"});
 			response.write( JSON.stringify(currentModel) );
 			response.end();
+
+			FS.appendFile(paths[id].path + "logs/" + id + ".csv", "Version,Accuracy,Time Requested,Time Received,Time Loaded,Time Trained\n", function(error) { if (error) throw error; });
 		}
 	}
 },
@@ -256,19 +263,23 @@ CreateRoutes = function(id) {
 
 	Routes["/weights/" + id] = {
 		"GET": function(request, response, verbose) {
-			var temp;
+			var temp, weights;
 			// send weights for layers
 			// data: <Buffer> [ ...layers ]
 			trainingMeta.last_training++;
 			if (trainingMeta.last_training === trainingMeta.training_minibatches) {
 				trainingMeta.last_training = 0;
 				trainingMeta.epochs_trained++;
+				console.log("Trained 1 epoch.");
 			}
 			response.writeHead(200, {"Content-Type": "arraybuffer"});
 			temp = new Float32Array(1);
 			temp[0] = trainingMeta.weights_version;
 			response.write(Buffer.from(temp.buffer));
-			response.write(Buffer.from(Merger.weights.read().data.buffer));
+			weights = Merger.weights.read().data;
+			console.log("Weights length: " + weights.length);
+			response.write(Buffer.from(weights.buffer));
+			console.log("Getting dataset: " + paths[id].data + trainingMeta.last_training);
 			response.write(FS.readFileSync(paths[id].data + trainingMeta.last_training));
 			response.end();
 		},
@@ -281,9 +292,13 @@ CreateRoutes = function(id) {
 			}
 
 			staleness = (trainingMeta.weights_version - paths[id].weights_version) + 1; // staleness >= 1
-			// integrate data into model
-			Merger.merge(new Float32Array(new Uint8Array(request.body).buffer), ( 1 / (staleness * num_clients)));
-			
+			if (staleness === 1) {
+				// weights not stale, so replace 
+				Merger.load(null, new Uint8Array(request.body));
+			} else {
+				// integrate weights into model
+				Merger.merge(new Float32Array(new Uint8Array(request.body).buffer), ( 1 / (staleness * num_clients)));
+			}
 			trainingMeta.weights_version++;
 			if (!shouldQuit) {
 
@@ -304,14 +319,15 @@ CreateRoutes = function(id) {
 					temp[0] = -1;
 					response.write(Buffer.from(temp.buffer));
 				}
-				response.write(FS.readFileSync(paths[id].data + trainingMeta.last_training));
+				// pick a random training sample to send
+				response.write(FS.readFileSync(paths[id].data + ( (Math.random() * trainingMeta.training_minibatches) >> 0)));
 			}
 			response.end();
 			
 			paths[id].weights_version = trainingMeta.weights_version;
 			if (Merger.shouldValidate) Validator.validateWeights(Merger.weights.read().data, function(loss) {
 				if (!paths[id]) return;
-				FS.appendFile(paths[id].path + "logs/validation", ( paths[id].weights_version + "," + loss + "," + (new Date()).toISOString() + "\n" ), function(error) { if (error) throw error; });
+				FS.appendFile(paths[id].path + "logs/validation.csv", ( paths[id].weights_version + "," + loss + "," + (new Date()).toISOString() + "\n" ), function(error) { if (error) throw error; });
 				sinceRefresh["validation"] = sinceRefresh["validation"] || [];
 				sinceRefresh["validation"].push({x: paths[id].weights_version, y: loss});
 			});
@@ -322,7 +338,7 @@ CreateRoutes = function(id) {
 
 	Routes["/log/" + id] = {
 		"PUT": function(request, response, verbose) {
-			FS.appendFile(paths[id].path + "logs/" + id, request.body, function(error) {
+			FS.appendFile(paths[id].path + "logs/" + id + ".csv", request.body, function(error) {
 				if (error) throw error;
 				else {
 					var line;

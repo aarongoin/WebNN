@@ -53,7 +53,7 @@ function POST(path, contentType, body) {
 		PUT("./stop", "application/json", "");
 	}
 
-	PUT("./train", "application/json", JSON.stringify({model: "mnist", version: "1"}));
+	PUT("./train", "application/json", JSON.stringify({model: "iris", version: "1"}));
 
 	GET("./train", "application/json", function(logs) {
 
@@ -61,14 +61,15 @@ function POST(path, contentType, body) {
 			datasets = [];
 
 		logs = JSON.parse(logs);
-		console.log(logs);
-		console.log("hello");
 
 		for (var client in logs) {
 			datasets.push({
-				label: "Client " + client,
-				backgroundColor: "rgba(0, 0, 0, 0)",
-				borderColor: randomColor(),
+				label: client,
+				backgroundColor: "rgba(0,0,0,0)",
+				borderColor: client == "view_at_scale" ? "rgba(0,0,0,0)" : randomColor(),
+				borderJoinStyle: "miter",
+				borderWidth: 2,
+				pointRadius: 0,
 				data: logs[client]
 			});
 
@@ -81,7 +82,7 @@ function POST(path, contentType, body) {
 			options: {
 				title: {
 					display: true,
-					text: "Training Accuracy for MNIST Model",
+					text: "Training Accuracy for IRIS Model",
 					fontSize: 20,
 					padding: 20
 				},
@@ -89,6 +90,7 @@ function POST(path, contentType, body) {
 					position: 'right'
 				},
 				elements: {
+					cubicInterpolationMode: "monotone",
 					line: {
 						tension: 0, // disables bezier curves
 					}
@@ -101,19 +103,21 @@ function POST(path, contentType, body) {
 			GET("./train", "application/json", function(logs) {
 				logs = JSON.parse(logs);
 				chart.data.datasets.forEach(function(dataset) {
-					var id = dataset.label.split(" ")[1];
-					if (logs[id] !== undefined) {
-						Array.prototype.push.apply(dataset.data, logs[id]);
-						delete logs[id];
+					if (logs[dataset.label] !== undefined) {
+						Array.prototype.push.apply(dataset.data, logs[dataset.label]);
+						delete logs[dataset.label];
 					}
 				});
 
 				for (var client in logs) {
 					console.log(client + " " + JSON.stringify(logs[client]));
 					chart.data.datasets.push({
-						label: "Client " + client,
-						backgroundColor: "rgba(0, 0, 0, 0)",
-						borderColor: client == "validation" ? "rgb(0,0,0)" : randomColor(),
+						label: client,
+						backgroundColor: "rgba(0,0,0,0)",
+						borderColor: client == "view_at_scale" ? "rgba(0,0,0,0)" : randomColor(),
+						borderJoinStyle: "miter",
+						borderWidth: 2,
+						pointRadius: 0,
 						data: logs[client]
 					});
 				}

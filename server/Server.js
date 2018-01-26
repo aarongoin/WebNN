@@ -42,7 +42,7 @@ module.exports = class Server {
 		var reqUrl = URL.parse(request.url),
 			body = [];
 
-		if (this.verbose) console.log("\n" + request.method + " Request for " + reqUrl.pathname + " recieved.");
+		if (this.verbose && reqUrl.pathname !== "/train") console.log("\n" + request.method + " Request for " + reqUrl.pathname + " recieved.");
 
 		if (request.method === "PUT") {
 			request.on("data", function(chunk) {
