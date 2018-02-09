@@ -1,0 +1,25 @@
+// main server should fork each model into it's own process
+// main server should dispatch requests to the corresponding child model with callback to finish the response
+
+// child process should worry about updating the model and saving to disk
+
+const
+FS = require("fs"),
+SERVER = require("./Server"),
+READLINE = require("readline"),
+UUID = (function(){
+	var possible = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+				 + "abcdefghijklmnopqrstuvwxyz"
+				 + "0123456789";
+	return function(length) {
+		var id = "";
+		length = length || 5;
+		while (length--) {
+			id += possible.charAt(Math.random() * 62 >> 0);
+		}
+		return id;
+	};
+})(),
+MERGER = require("./merge"),
+VALIDATOR = require("./validate"),
+Server;

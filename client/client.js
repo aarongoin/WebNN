@@ -10,6 +10,7 @@ function GET(path, responseType, callback) {
 		}
 	};
 	r.open("GET", path);
+	//r.setRequestHeader("Accept-Encoding", "gzip,deflate");
 	r.responseType = responseType;
 	r.send();
 }
@@ -23,24 +24,9 @@ function PUT(path, contentType, body, callback) {
 	}
 	r.open("PUT", path);
 	if (callback) r.responseType = contentType;
+	//r.setRequestHeader("Accept-Encoding", "gzip, deflate");
 	r.setRequestHeader("Content-Type", contentType);
 	r.send(body);
-}
-
-function POST(path, contentType, body) {
-	var r = new XMLHttpRequest();
-	r.onreadystatechange = function () {
-		if (r.readyState === XMLHttpRequest.DONE && r.status !== 200) {
-			// TODO - resend or save to local?
-		}
-	}
-	r.open("POST", path);
-	if (contentType !== undefined)
-		r.setRequestHeader("Content-Type", contentType);
-	if (body !== undefined)
-		r.send(body);
-	else
-		r.send();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -85,7 +71,7 @@ function POST(path, contentType, body) {
 			i,
 			batch;
 
-		console.log(testView);
+		//console.log(testView);
 		times.received = window.performance.now();
 
 		view = new Float32Array(arraybuffer, 4);
@@ -122,12 +108,12 @@ function POST(path, contentType, body) {
 			// post results to server
 			PUT("./weights/" + net.id, "arraybuffer", weights, update);
 			r = window.performance.now();
-			log += net.weights_version + ",";
+			log += iterations + ",";
 			log += accuracy + ",";
 			log += times.requested + ",";
 			log += times.received + ",";
 			log += times.loaded + ",";
-			log += times.trained + "\n";
+			log += times.trained;
 			// send time and training log to server
 			PUT("./log/" + net.id, "text", log);
 			times.requested = r;
@@ -143,7 +129,7 @@ function POST(path, contentType, body) {
 
 		model = new Model(net, null);
 		window.onbeforeunload = function() {
-			POST("./close/" + net.id, "string")
+			POST("./close/" + net.id, "string");
 		};
 		times.requested = window.performance.now();
 		GET("./weights/" + net.id, "arraybuffer", update);

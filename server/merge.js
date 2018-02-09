@@ -34,10 +34,10 @@ module.exports = class Merger {
 		this.merges = validateEvery - 1;
 	}
 
-	merge(weights, scale) {
+	merge(weights, scale, callback) {
 		var newWeights = new TF.Tensor(GL, ndarray( weights, [ weights.length ]));
 		//console.log("Merging weights, scale: " + scale);
-		if (this.weights !== null) this.weights.run(this.shader, {W: this.weights, N: newWeights, l: scale});
+		if (this.weights !== null) this.weights.run(this.shader, {W: this.weights, N: newWeights, l: scale}, callback);
 		else this.weights = new TF.InPlaceTensor(GL, ndarray(weights, [weights.length]));
 		this.check();
 	}
@@ -56,7 +56,7 @@ module.exports = class Merger {
 			//console.log(data);
 			//console.log(data.buffer);
 			data = new Float32Array(data.buffer);
-			console.log(data);
+			//console.log(data);
 			this.weights = new TF.InPlaceTensor(GL, ndarray(data, [data.length]));
 		}
 		this.check();
