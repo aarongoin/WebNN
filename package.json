@@ -1,49 +1,48 @@
 {
-	"name": "Calculon",
-	"version": "0.1.0",
-	"description": "Project for distributed NN training using TensorFire.",
-	"author": "Aaron Goin <aaron.goin@wsu.edu>",
-	"scripts": {
-		"clean": "rm -rf ./models/*/version/*/logs/* & rm -f ./models/*/version/*/training.json & rm -f ./models/*/version/*/weights",
-		"master": "npm run serve & open -a 'Google Chrome' 'http://localhost:8888/master'",
-		"serve": "NODE_ENV=production node ./server/main.js",
-		"build": "browserify ./client/client.js -t babelify -o ./client/calculon.js",
-		"dev": "watchify -d -v -t [ babelify --presets [ env ] ] -e ./client/client.js -o ./client/calculon.js"
-	},
-	"browserify": {
-		"transform": [
-			"babelify"
-		]
-	},
-	"dependencies": {
-		"gl": "^4.0.4",
-		"ndarray": "^1.0.18",
-		"node-uuid": "^1.4.8",
-		"preact": "^8.1.0",
-		"socket.io": "^2.0.4",
-		"tensorfire": "^0.9.1"
-	},
-	"devDependencies": {
-		"babel-cli": "^6.24.1",
-		"babel-core": "^6.24.1",
-		"babel-istanbul": "^0.12.1",
-		"babel-plugin-istanbul": "^3.1.2",
-		"babel-plugin-static-fs": "^1.1.0",
-		"babel-preset-env": "^1.4.0",
-		"babel-preset-es2015": "^6.18.0",
-		"babel-register": "^6.18.0",
-		"babelify": "^7.3.0",
-		"browserify": "^13.1.0",
-		"jest": "^22.0.4",
-		"mocha": "^3.5.3",
-		"ndarray-ops": "^1.2.2",
-		"ndarray-pack": "^1.2.1",
-		"ndarray-show": "^2.0.0",
-		"ndarray-tests": "^1.3.0",
-		"ndarray-unpack": "^1.0.0",
-		"nyc": "next",
-		"uglify-js": "^2.5.0",
-		"watchify": "^3.4.0",
-		"zeros": "^1.0.0"
-	}
+  "name": "Calculon",
+  "version": "0.1.0",
+  "license": "ISC",
+  "description": "Project for distributed NN training using TensorFire.",
+  "author": "Aaron Goin <aarondgoin@gmail.com>",
+  "scripts": {
+    "clean": "rm -rf ./models/*/version/*/logs/* & rm -f ./models/*/version/*/training.json & rm -f ./models/*/version/*/weights",
+    "master": "npm run serve & open -a 'Google Chrome' 'http://localhost:8888/master'",
+    "serve": "NODE_ENV=production node ./server/main.js",
+    "build": "browserify ./client/client.js -t babelify -o ./client/calculon.js",
+    "dev": "watchify -d -v -t [ babelify --presets [ env ] ] -e ./client/client.js -o ./client/calculon.js"
+  },
+  "browserify": {
+    "transform": [
+      "babelify"
+    ]
+  },
+  "dependencies": {
+    "gl": "^4.0.4",
+    "ndarray": "^1.0.18",
+    "pako": "^1.0.6",
+    "tensorfire": "^0.9.1"
+  },
+  "devDependencies": {
+    "babel-cli": "^6.24.1",
+    "babel-core": "^6.24.1",
+    "babel-istanbul": "^0.12.1",
+    "babel-plugin-istanbul": "^3.1.2",
+    "babel-plugin-static-fs": "^1.1.0",
+    "babel-preset-env": "^1.4.0",
+    "babel-preset-es2015": "^6.18.0",
+    "babel-register": "^6.18.0",
+    "babelify": "^7.3.0",
+    "browserify": "^13.1.0",
+    "jest": "^22.0.4",
+    "mocha": "^3.5.3",
+    "ndarray-ops": "^1.2.2",
+    "ndarray-pack": "^1.2.1",
+    "ndarray-show": "^2.0.0",
+    "ndarray-tests": "^1.3.0",
+    "ndarray-unpack": "^1.0.0",
+    "nyc": "next",
+    "uglify-js": "^2.5.0",
+    "watchify": "^3.4.0",
+    "zeros": "^1.0.0"
+  }
 }

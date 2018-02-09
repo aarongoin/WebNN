@@ -4,6 +4,7 @@ logs/
 weights/
 data/
 test/
+SAVED/
 
 
 # Created by https://www.gitignore.io/api/c,node
@@ -124,3 +125,4 @@ typings/
 
 
 # End of https://www.gitignore.io/api/c,node
+*.code-workspace
