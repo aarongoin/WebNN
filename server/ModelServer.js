@@ -1,16 +1,18 @@
 const FS = require('fs')
+const DumbClient = require('./DumbClient')
 
 module.exports = class ModelServer {
     constructor(modelPath) {
         // open model for training
-        this.model = FS.readFileSync(modelPath + '/model.json', 'utf8')
-        this.meta = FS.readFileSync(modelPath + '/')
+        this.JSON_model = FS.readFileSync(modelPath + '/model.json', 'utf8')
+        this.model = JSON.parse(this.JSON_model)
+        // this.meta = FS.readFileSync(modelPath + '/')
         // hold current weights in memory--if no weights then generate them
         if (FS.existsSync(modelPath + '/weights')) {
             let origPoolSize = Buffer.poolSize;
-			Buffer.poolSize = modelSize * 4
-			this.currentWeights = FS.readFileSync(modelPath + '/weights')
-			Buffer.poolSize = origPoolSize
+            Buffer.poolSize = modelSize * 4
+            this.currentWeights = FS.readFileSync(modelPath + '/weights')
+            Buffer.poolSize = origPoolSize
         } else {
             this.currentWeights = new Float32Array(this.model.size)
         }
@@ -31,7 +33,7 @@ module.exports = class ModelServer {
         // return current weights
         return this.currentWeights
     }
-    
+
     putWeights(weights, callback) {
         // merge weights
         this.merger.merge(weights, scale, () => {
@@ -39,7 +41,7 @@ module.exports = class ModelServer {
             callback()
         })
     }
-    
+
     getData() {
         // data: <Buffer> [ batchSize, batchX, batchY ]
         // return batch of data
@@ -48,5 +50,13 @@ module.exports = class ModelServer {
 
     saveModel() {
         // save model to disk
+    }
+
+    getClient() {
+        // create dumb client if need be, and return it
+        if (!this.dumb_client) {
+            this.dumb_client = DumbClient(this.modelPath, this.JSON_model)
+        }
+        return this.dumb_client
     }
 }
