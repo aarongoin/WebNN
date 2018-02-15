@@ -17,17 +17,10 @@ UUID = (function(){
 })(),
 MERGER = require("./merge"),
 VALIDATOR = require("./validate"),
+Server;
 
-getRequestIP = function(request) {
-	if (request.headers['X-Forwarded-For']) return request.headers['X-Forwarded-For'].split(',').pop();
-	else return request.connection.remoteAddress || request.socket.remoteAddress || request.connection.socket.remoteAddress;
-};
-//fork = require("child-process").fork;
 
 var
-availableBatches = [],
-trainingBatches = [],
-Clients = {},
 sinceRefresh = { "view_at_scale": [{x: 0, y: 1}, {x: 0, y: 0}, {x: 3748, y: 1}] },
 currentModel = {},
 trainingMeta = {},
@@ -136,7 +129,7 @@ Routes = {
 			
 			data = FS.readFileSync(modelPath + "model.json", 'utf8');
 			currentModel = JSON.parse(data);
-			//console.log(currentModel.model + " version: " + currentModel.version + "\n");
+			console.log(currentModel.model + " version: " + currentModel.version + "\n");
 
 			Validator = new VALIDATOR(modelPath, "./models/" + train.model + "/test/", null, trainingMeta);
 			if (trainingMeta.weights_version === -1) {
@@ -145,14 +138,8 @@ Routes = {
 				trainingMeta.weights_version = 0;
 			}
 			//if (Merger !== null) Merger.save();
-			//console.log("Merger opening: " + modelPath + "weights");
+			console.log("Merger opening: " + modelPath + "weights");
 			Merger = new MERGER(modelPath + "weights", 10, Validator.size);
-
-			// load all training data in to memory
-			for (var i = 0; i < trainingMeta.training_minibatches; i++) {
-				availableBatches.push(i);
-				trainingBatches.push(FS.readFileSync(`./models/${train.model}/data/${i}`));
-			}
 
 			response.writeHead(200);
 			response.end();
@@ -167,7 +154,13 @@ Routes = {
 			shouldQuit = true;
 			onStop();
 		}
-	},
+    },
+    "/online": {
+        "GET": function(request, response, verbose) {
+            response.writeHead(200);
+			response.end();
+        }
+    },
 
 // CLIENT ROUTES //////////////////////////////////////////////////////////////
 	"/": {
@@ -206,43 +199,52 @@ Routes = {
 			});
 		}
 	},
-	"/model": { // get the current model to train
-		"GET": function(request, response, verbose) {
-			
-			var id = UUID();
 
-			paths[id] = {
-				weights_version: trainingMeta.weights_version,
-				data: "./models/" + currentModel.model + "/data/",
-				path: "./models/" + currentModel.model + "/version/" + currentModel.version + "/",
-				log: "./models/" + currentModel.model + "/version/" + currentModel.version + "/logs/" + id
-			};
 
-			currentModel.id = id;
-			currentModel.weights_version = trainingMeta.weights_version;
-			num_clients++;
-			CreateRoutes(id, currentModel.model, currentModel.version);
-
-			response.writeHead(200, {"Content-Type": "application/json"});
-			response.write( JSON.stringify(currentModel) );
-			response.end();
-
-			FS.appendFile(paths[id].path + "logs/validation.csv", "Version,Accuracy,Time Logged\n", function(error) { if (error) throw error; });
-			FS.appendFile(paths[id].path + "logs/" + id + ".csv", "Version,Accuracy,Time Requested,Time Received,Time Loaded,Time Trained,Server Time Served,Server Time Received\n", function(error) { if (error) throw error; });
-		}
+	// Old code to create initial log.csv file
+	// FS.appendFile(paths[id].path + "logs/" + id + ".csv", "Version,Accuracy,Time Requested,Time Received,Time Loaded,Time Trained\n", function(error) { if (error) throw error; });
 	}
 },
 
-DeleteRoutes = function(id) {
-	// remove routes
-	delete Routes["/model/" + id];
-	delete Routes["/log/" + id];
-	delete Routes["/data/" + id];
-	delete Routes["/close/" + id];
+// load model.conf file
+if (FS.existsSync('./models.conf')) {
+	let rl = READLINE.createInterface({
+		input : FS.createReadStream('./models.conf'),
+		terminal: false
+	});
 
-	num_clients--;
-	paths[id] = undefined;
-},
+	rl.on('close', function() {
+        Server = new SERVER(8888, Routes, true);
+		Server.start();
+	});
+
+	rl.on('line', function(line) {
+		// create model routes
+        let base = '/' + line.trim();
+        
+        
+		Routes[base + '/data'] = {
+        // get training batch of data
+            GET: function(request, response, verbose) {
+
+            }
+        }
+        
+        Routes[base + '/update'] = {
+        // get latest weights
+            GET: function(request, response, verbose) {
+
+            },
+        // recieve client weights and pass back updated weights
+            PUT: function(request, response, verbose) {
+
+            }
+        }
+	});
+} else {
+	throw Error("ERROR! Missing file: ./models.conf");
+}
+
 
 CreateRoutes = function(id) {
 
@@ -280,30 +282,22 @@ CreateRoutes = function(id) {
 			var temp, weights;
 			// send weights for layers
 			// data: <Buffer> [ ...layers ]
-
-			let client_ip = getRequestIP(request);
-			Clients[client_ip] = { begin: Date.now(), log: "" };
-
+			trainingMeta.last_training++;
+			if (trainingMeta.last_training === trainingMeta.training_minibatches) {
+				trainingMeta.last_training = 0;
+				trainingMeta.epochs_trained++;
+				console.log("Trained 1 epoch.");
+			}
 			response.writeHead(200, {"Content-Type": "arraybuffer"});
-
-			// write weight version
 			temp = new Float32Array(1);
 			temp[0] = trainingMeta.weights_version;
 			response.write(Buffer.from(temp.buffer));
-
-			// write weights
 			weights = Merger.weights.read().data;
+			console.log("Weights length: " + weights.length);
 			response.write(Buffer.from(weights.buffer));
-
-			// write training minibatch
-			let random = Math.round( Math.random() * availableBatches.length );
-			response.write(trainingBatches[random]);
+			console.log("Getting dataset: " + paths[id].data + trainingMeta.last_training);
+			response.write(FS.readFileSync(paths[id].data + trainingMeta.last_training));
 			response.end();
-			availableBatches.splice(random, 1); // remove batch from pool of available minibatches
-			if (availableBatches.length === 0) {
-				trainingMeta.epochs_trained++;
-				for (let i = 0; i <= trainingBatches.legnth; i++) availableBatches.push(i);
-			}
 		},
 		"PUT": function(request, response, verbose) {
 			var staleness, temp;
@@ -312,13 +306,7 @@ CreateRoutes = function(id) {
 				response.end();
 				return;
 			}
-			
-			let client_ip = getRequestIP(request);
-			Clients[client_ip].log = "," + Clients[client_ip].begin + "," + Date.now() + "\n";
-			
-			
 
-			// merge weights
 			staleness = (trainingMeta.weights_version - paths[id].weights_version) + 1; // staleness >= 1
 			if (staleness === 1) {
 				// weights not stale, so replace 
@@ -328,10 +316,13 @@ CreateRoutes = function(id) {
 				Merger.merge(new Float32Array(new Uint8Array(request.body).buffer), ( 1 / (staleness * num_clients)));
 			}
 			trainingMeta.weights_version++;
-
-			// send weights and training data back in response
 			if (!shouldQuit) {
-				Clients[client_ip].begin = Date.now();
+
+				trainingMeta.last_training++;
+				if (trainingMeta.last_training === trainingMeta.training_minibatches) {
+					trainingMeta.last_training = 0;
+					trainingMeta.epochs_trained++;
+				}
 
 				response.writeHead(200, {"Content-Type": "arraybuffer"});
 
@@ -345,20 +336,14 @@ CreateRoutes = function(id) {
 					response.write(Buffer.from(temp.buffer));
 				}
 				// pick a random training sample to send
-				let random = Math.round( Math.random() * availableBatches.length );
-				response.write(trainingBatches[random]);
-				availableBatches.splice(random, 1); // remove batch from pool of available minibatches
-				if (availableBatches.length === 0) {
-					trainingMeta.epochs_trained++;
-					for (let i = 0; i <= trainingBatches.legnth; i++) availableBatches.push(i);
-				}
+				response.write(FS.readFileSync(paths[id].data + ( (Math.random() * trainingMeta.training_minibatches) >> 0)));
 			}
 			response.end();
 			
 			paths[id].weights_version = trainingMeta.weights_version;
 			if (Merger.shouldValidate) Validator.validateWeights(Merger.weights.read().data, function(loss) {
 				if (!paths[id]) return;
-				FS.appendFile(paths[id].path + "logs/validation.csv", ( paths[id].weights_version + "," + loss + "," + Date.now() + "\n" ), function(error) { if (error) throw error; });
+				FS.appendFile(paths[id].path + "logs/validation.csv", ( paths[id].weights_version + "," + loss + "," + (new Date()).toISOString() + "\n" ), function(error) { if (error) throw error; });
 				sinceRefresh["validation"] = sinceRefresh["validation"] || [];
 				sinceRefresh["validation"].push({x: paths[id].weights_version, y: loss});
 			});
@@ -369,15 +354,13 @@ CreateRoutes = function(id) {
 
 	Routes["/log/" + id] = {
 		"PUT": function(request, response, verbose) {
-			let client_ip = getRequestIP(request);
-
-			FS.appendFile(paths[id].path + "logs/" + id + ".csv", request.body + Clients[client_ip].log, function(error) {
+			FS.appendFile(paths[id].path + "logs/" + id + ".csv", request.body, function(error) {
 				if (error) throw error;
 				else {
 					var line;
 					response.writeHead(200);
 					response.end();
-					
+
 					sinceRefresh[id] = sinceRefresh[id] || [];
 					line = request.body.toString().split(",");
 					sinceRefresh[id].push({x: Number(line[0]), y: Number(line[1])});
@@ -396,9 +379,6 @@ onStop = function() {
 	console.log("Goodbye.");
 	process.exit();
 };
-
-const Server = new SERVER(8888, Routes, false);
-Server.start();
 
 // I read that this doesn't work on Windows (but did not verify)
 process.on('SIGINT', onStop);

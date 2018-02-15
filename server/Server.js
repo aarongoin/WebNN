@@ -1,8 +1,7 @@
 const
 	HTTP = require("http"),
 	URL = require("url"),
-	BIND = require("./bind.js"),
-	IO = require("socket.io");
+	BIND = require("./bind.js");
 
 var INSTANCE;
 
@@ -11,7 +10,6 @@ module.exports = class Server {
 		this.port = port;
 		this.routes = routes;
 		this.verbose = verbose;
-		this.io = null;
 
 		BIND(this);
 
@@ -20,13 +18,6 @@ module.exports = class Server {
 
 	start() {
 		this.server = HTTP.createServer(this.handle);
-		this.io = IO(this.server);
-		this.io.on("connection", function(socket) {
-			console.log("Socket connected!");
-			socket.on("disconnect", function() {
-				console.log("Socket disconnected.");
-			});
-		});
 		this.server.listen(this.port);
 		if (this.verbose)
 			console.log("Server started at port " + this.port + ".");
