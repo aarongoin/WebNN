@@ -37,7 +37,7 @@ module.exports = class Merger {
 	merge(weights, scale, callback) {
 		var newWeights = new TF.Tensor(GL, ndarray( weights, [ weights.length ]));
 		//console.log("Merging weights, scale: " + scale);
-		if (this.weights !== null) this.weights.run(this.shader, {W: this.weights, N: newWeights, l: scale}, callback);
+		if (this.weights !== null) this.weights.run(this.shader, {W: this.weights, N: newWeights, l: 0.5}, callback);
 		else this.weights = new TF.InPlaceTensor(GL, ndarray(weights, [weights.length]));
 		this.check();
 	}
