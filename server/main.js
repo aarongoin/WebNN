@@ -404,5 +404,5 @@ onStop = function() {
 const Server = new SERVER(8888, Routes, false);
 Server.start();
 
-// I read that this doesn't work on Windows (but did not verify)
+// May not work on Windows ¯\_(ツ)_/¯
 process.on('SIGINT', onStop);
