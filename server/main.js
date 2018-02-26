@@ -143,6 +143,10 @@ Routes = {
 				// write random weights to disk
 				FS.writeFileSync(modelPath + "weights", Buffer.from(Validator.save()), "binary");
 				trainingMeta.weights_version = 0;
+				Validator.validateWeights(
+					Merger.weights.read().data,
+					(loss) => FS.appendFile(paths[id].path + "logs/validation.csv", "0," + loss + "," + Date.now() + "\n", function (error) { if (error) throw error; })
+				);
 			}
 			//if (Merger !== null) Merger.save();
 			//console.log("Merger opening: " + modelPath + "weights");
