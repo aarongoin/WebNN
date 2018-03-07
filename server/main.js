@@ -143,14 +143,15 @@ Routes = {
 				// write random weights to disk
 				FS.writeFileSync(modelPath + "weights", Buffer.from(Validator.save()), "binary");
 				trainingMeta.weights_version = 0;
-				Validator.validateWeights(
-					Merger.weights.read().data,
-					(loss) => FS.appendFile(paths[id].path + "logs/validation.csv", "0," + loss + "," + Date.now() + "\n", function (error) { if (error) throw error; })
-				);
 			}
 			//if (Merger !== null) Merger.save();
 			//console.log("Merger opening: " + modelPath + "weights");
 			Merger = new MERGER(modelPath + "weights", 10, Validator.size);
+
+			if (trainingMeta.weights_version === 0) Validator.validateWeights(
+				Merger.weights.read().data,
+				(loss) => FS.appendFile(modelPath + "logs/validation.csv", "Version,Accuracy,Time Logged\n0," + loss + "," + Date.now() + "\n", function (error) { if (error) throw error; })
+			);
 
 			// load all training data in to memory
 			for (var i = 0; i < trainingMeta.training_minibatches; i++) {
@@ -231,7 +232,6 @@ Routes = {
 			response.write( JSON.stringify(currentModel) );
 			response.end();
 
-			FS.appendFile(paths[id].path + "logs/validation.csv", "Version,Accuracy,Time Logged\n", function(error) { if (error) throw error; });
 			FS.appendFile(paths[id].path + "logs/" + id + ".csv", "Version,Accuracy,Time Requested,Time Received,Time Loaded,Time Trained,Server Time Served,Server Time Received\n", function(error) { if (error) throw error; });
 		}
 	}
