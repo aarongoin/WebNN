@@ -7,7 +7,8 @@
   "scripts": {
     "clean": "rm -rf ./models/*/version/*/logs/* & rm -f ./models/*/version/*/training.json & rm -f ./models/*/version/*/weights",
     "master": "npm run serve & open -a 'Google Chrome' 'http://localhost:8888/master'",
-    "serve": "NODE_ENV=production node ./server/main.js",
+    "serve-prof": "NODE_ENV=production node --prof ./server/main.js",
+    "serve": "NODE_ENV=production node --prof ./server/main.js",
     "build": "browserify ./client/client.js -t babelify -o ./client/calculon.js",
     "dev": "watchify -d -v -t [ babelify --presets [ env ] ] -e ./client/client.js -o ./client/calculon.js"
   },

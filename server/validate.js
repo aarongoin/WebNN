@@ -11,26 +11,33 @@ module.exports = class Validator extends Model {
 		super(JSON.parse( FS.readFileSync(modelpath + "model.json", 'utf8') ), weights);
 		this.testpath = testpath;
 		this.trainingMeta = trainingMeta;
+
+		// load all validation data in to memory
+		var origPoolSize = Buffer.poolSize;
+		Buffer.poolSize = 161 * 4;
+		this.batches = [];
+		for (var i = 0; i < trainingMeta.validation_minibatches; i++)
+			this.batches.push(
+				new Float32Array(
+					FS.readFileSync("" + testpath + i).buffer
+				)
+			);
+		this.last_validation = 0;
+
+		Buffer.poolSize = origPoolSize;
+
+		console.log(this.batches);
 	}
 
 	validateWeights(weights, callback) {
 
-		this.trainingMeta.last_validation++;
-		if (this.trainingMeta.last_validation === this.trainingMeta.validation_minibatches) {
-			this.trainingMeta.last_validation = 0;
-		}
+		if (this.last_validation === this.batches.length)
+			this.last_validation = 0;
+		
+		var data = this.batches[this.last_validation];
+		var len = data[0] * this.model.layers[0].shape[1]; // first float is number of samples in this batch
 
-		FS.readFile(this.testpath + this.trainingMeta.last_validation, (error, data) => {
-			var len;
-			if (error) throw error;
-			else {
-				// unpack training batch
-				data = new Float32Array(data.buffer);
-				len = data[0] * this.model.layers[0].shape[1]; // first float is number of samples in this batch
-
-				this.load(weights);
-				this.validate(data.subarray(1, ++len), data.subarray(len), callback); 
-			}
-		});
+		this.load(weights);
+		this.validate(data.subarray(1, ++len), data.subarray(len), callback); 
 	}
 };
