@@ -5,12 +5,7 @@
   "description": "Project for distributed NN training using TensorFire.",
   "author": "Aaron Goin <aarondgoin@gmail.com>",
   "scripts": {
-    "clean": "rm -rf ./models/*/version/*/logs/* & rm -f ./models/*/version/*/training.json & rm -f ./models/*/version/*/weights",
-    "master": "npm run serve & open -a 'Google Chrome' 'http://localhost:8888/master'",
-    "serve-prof": "NODE_ENV=production node --prof ./server/main.js",
-    "serve": "NODE_ENV=production node --prof ./server/main.js",
-    "build": "browserify ./client/client.js -t babelify -o ./client/calculon.js",
-    "dev": "watchify -d -v -t [ babelify --presets [ env ] ] -e ./client/client.js -o ./client/calculon.js"
+    "docs": "./node_modules/.bin/jsdoc ./lib -r -R ./README.md -d ./docs/"
   },
   "browserify": {
     "transform": [
@@ -35,6 +30,8 @@
     "babelify": "^7.3.0",
     "browserify": "^13.1.0",
     "jest": "^22.0.4",
+    "jsdoc": "^3.5.5",
+    "jsdoc-babel": "^0.4.0",
     "mocha": "^3.5.3",
     "ndarray-ops": "^1.2.2",
     "ndarray-pack": "^1.2.1",

@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: nn/Model.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: nn/Model.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>var Layers = require("./Layers");
+
+/**
+ * This is the Model class
+ * @example
+ * let myModel = new Model({
+ * 	layers: [
+ * 		{ input: 30 },
+ * 		{ dense: 'tanh', bias: true, out: 30 }
+ * 		{ output: 3, loss: 'mean_squared_error' }
+ * 	]
+ * });
+ */
+class Model {
+	/**
+	 * Creates a new model ready to execute and train on input.
+	 * @param {Object} model - Object describing model
+	 * @param {Object[]} model.layers - Array of objects describing model layers
+	 * @param {?(Float32Array|ArrayBuffer)} weights - Weights for all layers
+	 */
+	constructor(model, weights) {
+		// this.input = new Input(model.layers.shift());
+		// this.output = new Output(model.layers.pop());
+		/** 
+		 * Hidden layers of the model. The input layer is at index: 0, and the output layer is at index: layers.length - 1
+		 * @type {Object[]} 
+		 * */
+		this.hidden = new Array(model.layers.length);
+		/** 
+		 * Number of weights and biases in entire model.
+		 * @type {number}
+		 * */
+		this.size = 0;
+		/**
+		 * The model description
+		 * @type {Object}
+		 */
+		this.model = model;
+
+		this.load(weights);
+
+	}
+	/**
+	 * Execute forward pass of input through model.
+	 * @param {Float32Array|Tensor} input - Features input to model
+	 * @returns {Tensor} Tensor containing model output 
+	 */
+	forward(input) {
+		// forward propogation
+		var output = input;
+		// var output = this.input.forward(input);
+		var l = -1;
+		for (var layer of hidden)
+			output = layer.forward(output);
+		
+		return this.output.forward(output);
+	}
+	/**
+	 * Execute backward pass of error through model.
+	 * @param {Tensor} output - Error from output
+	 */
+	backward(output, learn) {
+		// backward propogation
+		var l = this.hidden.length;
+		while (l--)
+			output = this.hidden[l].backward(output, learn);
+	}
+
+	/**
+	 * Validate model and pass output accuracy as argument to callback.
+	 * @param {Float32Array|Tensor} input - Features input to model
+	 * @param {Float32Array|Tensor} expect - Expected model output
+	 * @param {?validtionCallback} callback
+	 */
+	validate(input, expect, callback) {
+		this.forward(input);
+		this.output.backward(expect);
+	
+		if (typeof callback === "function") callback(this.output.accuracy)
+	}
+	/**
+	 * Callback for validation
+	 * @callback validtionCallback
+	 * @param {number} accuracy
+	 */
+
+	/**
+	 * Train model and pass new weights and model accuracy as arguments to callback.
+	 * @param {Float32Array|Tensor} input - Features input to model
+	 * @param {Float32Array|Tensor} expect - Expected model output
+	 * @param {?trainingCallback} callback 
+	 */
+	train(input, expect, callback) {
+		this.forward(input);
+		this.backward(this.output.backward(expect), learn);
+
+		if (typeof callback === "function") callback(this.save(), this.output.accuracy);
+	}
+	/**
+	 * Callback for training
+	 * @callback trainingCallback
+	 * @param {Float32Array} weights - Updated weights from model
+	 * @param {number} accuracy - Accuracy of model's output
+	 */
+
+	/**
+	 * Saves model weights.
+	 * @returns {ArrayBuffer} ArrayBuffer containing weights and biases from all layers in model
+	 */
+	save() {
+		// TypedArray to hold weights, bias, etc. from every layer of model
+		var weights = new Float32Array(this.size);
+		var o = 0;
+		// pull out trained weights for each layer
+		for (var layer of this.hidden) {
+			weights.set(layer.save(), o);
+			o += layer.size;
+		}
+		return weights.buffer;
+	}
+
+	/**
+	 * Loads weights into model, or generates new ones if needed.
+	 * @param {?(Float32Array|ArrayBuffer)} weights - weights to load into model, if null then weights will be generated
+	 */
+	load(weights) {
+		// construct layers
+		var offset = 0;
+
+		this.size = 0;
+		if (weights != null &amp;&amp; !(weights instanceof Float32Array)) {
+			weights = new Float32Array(weights);
+		}
+		for (var layer of this.hidden) {
+			layer = new Layers[layer.type](layer, l);
+			this.size += layer.size;
+
+			if (weights != null)
+				offset = layer.load(weights, offset);
+			else layer.randomWeights();
+		}
+	}
+
+	/**
+	 * Merge weights into current set ( Weights += (Param_Weights - Weights) * scale )
+	 * @param {*} weights - Weights to merge into current model weights
+	 * @param {number} scale - Determines how weights are merged
+	 */
+	merge(weights, scale=0.5) {
+		var offset = 0;
+		for (var layer of this.hidden) {
+			layer.merge(weights, offset, scale);
+		}
+	}
+}
+module.exports = Model;</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="Dense.html">Dense</a></li><li><a href="MeanSquaredError.html">MeanSquaredError</a></li><li><a href="Model.html">Model</a></li><li><a href="Output.html">Output</a></li><li><a href="Validator.html">Validator</a></li></ul><h3><a href="global.html">Global</a></h3>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.5.5</a> on Sat Mar 10 2018 22:58:25 GMT-0800 (PST)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>

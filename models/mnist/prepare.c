@@ -23,13 +23,14 @@ void split(int populationSize,int batchSize, FILE * origX, FILE * origY, char de
 	float mb = (float) batchSize;
 	float n;
 	float buffer[X_WIDTH];
+	char cc = batchSize;
 
 	int b = -1;
 	while (++b < i) {
 		// create new file to hold this training batch
 		sprintf(&path[7], "%d", b);
 		miniBatch = fopen(path, "wb");
-		fwrite(&mb, sizeof mb, 1, miniBatch); // write minibatch size
+		fwrite(&mb, sizeof cc, 1, miniBatch); // write minibatch size
 
 		printf("Working on batch: %d\n", b);
 		// read in X data point
@@ -42,18 +43,18 @@ void split(int populationSize,int batchSize, FILE * origX, FILE * origY, char de
 			l = X_WIDTH;
 			while (l--) {
 				// read in data point and normalize
-				n = ((float) fgetc(origX)) / 255.0;
+				cc = fgetc(origX);
 				//buffer[l] = n;
 				// write data to batch file
-				fwrite(&n, sizeof n, 1, miniBatch);
+				fwrite(&cc, sizeof cc, 1, miniBatch);
 
-				// print input ascii art to console
-				if (n > 0) printf("#");
-				else printf(" ");
-				if (--w == 0) {
-					printf("\n");
-					w = 28;
-				}
+				// // print input ascii art to console
+				// if (n > 0) printf("#");
+				// else printf(" ");
+				// if (--w == 0) {
+				// 	printf("\n");
+				// 	w = 28;
+				// }
 			}
 			// for (int y = 0; y < 27; y += 1) {
 			// 	for (int x = 0; x < 27; x += 1) {
