@@ -19,14 +19,14 @@ switch (command) {
     case 'train': {
         const name = process.argv[3];
         const port = process.argv[4] || '8888';
-        const key = Math.abs(Math.random() * 10000000000 << 0) % 4294967291;
         const path = './models/' + name + '/';
 
         if (name) {
             console.log('Training model: ' + name + ' at port: ' + port);
-            console.log('Watch model validation at localhost:' + port + '/' + key)
+            console.log('Dumb client at localhost:' + port + '/client');
+            console.log('Watch model validation at localhost:' + port + '/watch')
             // start serving model for training
-            PS.execFile('node ./lib/server/WNNServer.js', [path, port, key]);
+            PS.execFile('node ./lib/server/WNNServer.js', [path, port]);
         } else {
             console.error('Invalid command!');
             console.log(helpText)

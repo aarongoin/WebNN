@@ -23,7 +23,7 @@ module.exports = {
         end_condition: 0.9,
 
         // learning rate is how fast your model will adjust itself when it's wrong
-        learning_rate: 0.01,
+        learning_rate: 0.0001,
 
         // learning rate decay can help your model reach maximum accuracy, but too much can stop your model short
         // if 0, then the learning rate does not decay
@@ -33,7 +33,7 @@ module.exports = {
         // if you wish to train your model with an existing dataset, you must define the delegate that will provide data minibatches to be sent to dumb clients to train
         // your delegate must implement the method: getBatch(size) which should return the training data as a TypedArray
         // MiniBatch = [ N, input_set_0, ... input_set_N, output_set_0, ... output_set_N ], where N is number of training samples in minibatch, and each set is the in-order list of inputs or output
-        data_delegate: undefined
+        data_delegate: require('./trainingData')
 
     },
 
@@ -48,7 +48,7 @@ module.exports = {
         // you must define the delegate that will provide validation minibatches to the model validator
         // your delegate must implement the method: getBatch(size) which should return the validation data as a TypedArray
         // MiniBatch = [ N, input_set_0, ... input_set_N, output_set_0, ... output_set_N ], where N is number of training samples in minibatch, and each set is the in-order list of inputs or output
-        data_delegate: undefined
+        data_delegate: require('./validationData')
 
     }
 }

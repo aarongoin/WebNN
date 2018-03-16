@@ -13,6 +13,7 @@
     ]
   },
   "dependencies": {
+    "canvasjs": "^1.8.1",
     "gl": "^4.0.4",
     "ndarray": "^1.0.18",
     "pako": "^1.0.6",
