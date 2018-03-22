@@ -5,7 +5,7 @@ const samples = 32;
 let origPoolSize = Buffer.poolSize;
 Buffer.poolSize = 900;
 
-let data = Float32Array(FS.readFileSync('./test/0', 'wb'));
+let data = new Float32Array(FS.readFileSync('./models/iris2/test/0').buffer);
 
 Buffer.poolSize = origPoolSize;
 

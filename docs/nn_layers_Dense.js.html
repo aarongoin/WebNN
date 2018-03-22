@@ -26,101 +26,104 @@
     
     <section>
         <article>
-            <pre class="prettyprint source linenums"><code>var ndarray = require("ndarray"),
-	TF = (global &amp;&amp; global.TF) || window.TF,
-	GL = (global &amp;&amp; global.GL) || window.GL,
+            <pre class="prettyprint source linenums"><code>const 
+ndarray = require("ndarray"),
+TF = (global &amp;&amp; global.TF) || window.TF,
+GL = (global &amp;&amp; global.GL) || window.GL,
 
-	Funcs = require('./Activations'),
-	generateWeights = require('../util/generateWeights'),
+Funcs = require('./Activations'),
+generateWeights = require('../../util/generateWeights');
 
-	ForwardBiased = `
-		uniform Tensor W; // layer weights
-		uniform Tensor I; // layer inputs
-		float process(ivec4 pos) { // for each unit in output (x: unit, y: sample)
-				float n = 0.0;
-				for(int i = 0; i &lt; #(W.shape).y; i++){ // for each weight
-					if (i == #(W.shape).y - 1) {
-						n += W.read(pos.x, i);
-					} else {
-						n += I.read(i, pos.y) * W.read(pos.x, i);
-					}
-				}
-				return n;
-		}
-	`,
-	ForwardUnbiased = ` // for each output node
-		uniform Tensor W; // layer weights
-		uniform Tensor I; // layer inputs
-		float process(ivec4 pos) {
-			float n = 0.0;
-			for(int i = 0; i &lt; #(W.shape).y; i++){
+const ForwardBiased = (activationFunction) => `
+	uniform Tensor W; // layer weights
+	uniform Tensor I; // layer inputs
+	float process(ivec4 pos) { // for each unit in output (x: unit, y: sample)
+		float n = 0.0;
+		float o = 0.0;
+		for(int i = 0; i &lt; #(W.shape).y; i++){ // for each weight
+			if (i == #(W.shape).y - 1) {
+				n += W.read(pos.x, i);
+			} else {
 				n += I.read(i, pos.y) * W.read(pos.x, i);
 			}
-			return n;
 		}
-	`,
-	BackwardBiased = ` // for each input node
-		uniform Tensor E; // local error (from activation)
-		uniform Tensor W; // weights
-		float process(ivec4 pos) { // position in input gradient Tensor
-			float e = 0.0; // sum output error
-			for(int i = 0; i &lt; #(E.shape).x; i++){
-				if (pos.y != #(E.shape).x) {
-					e += W.read(i, pos.x) * E.read(i, pos.y);
-				}
-			}
-			return e;
+		${ activationFunction }
+		return o;
+	}
+`;
+const ForwardUnbiased = (activationFunction) => ` // for each output node
+	uniform Tensor W; // layer weights
+	uniform Tensor I; // layer inputs
+	float process(ivec4 pos) {
+		float n = 0.0;
+		float o = 0.0;
+		for(int i = 0; i &lt; #(W.shape).y; i++){
+			n += I.read(i, pos.y) * W.read(pos.x, i);
 		}
-	`,
-	BackwardUnbiased = ` // for each input node
-		uniform Tensor E; // local error (from activation)
-		uniform Tensor W; // weights
-		float process(ivec4 pos) { // position in input gradient Tensor
-			float e = 0.0; // sum output error
-			for(int i = 0; i &lt; #(E.shape).x; i++){
+		${ activationFunction }
+		return o;
+	}
+`;
+const BackwardBiasedShader = ` // for each input node
+	uniform Tensor E; // local error (from activation)
+	uniform Tensor W; // weights
+	float process(ivec4 pos) { // position in input gradient Tensor
+		float e = 0.0; // sum output error
+		for(int i = 0; i &lt; #(E.shape).x; i++){
+			if (pos.y != #(E.shape).x) {
 				e += W.read(i, pos.x) * E.read(i, pos.y);
 			}
-			return e;
 		}
-	`,
-	Weights = `
-		uniform Tensor E; // local error (from activation)
-		uniform Tensor W; // weights
-		uniform Tensor I; // input
-		uniform float l; // learning rate
-		float process(ivec4 pos) { // pos in weights Tensor
-			float e = 0.0; // avg node batch error
-			for(int i = 0; i &lt; #(E.shape).y; i++){
-				if (pos.y == #(I.shape).x) { // handle bias layer ?
-					e += E.read(pos.x, i);
-				} else {
-					e += E.read(pos.x, i) * I.read(pos.y, i);
-				}
+		return e;
+	}
+`;
+const BackwardUnbiasedShader = ` // for each input node
+	uniform Tensor E; // local error (from activation)
+	uniform Tensor W; // weights
+	float process(ivec4 pos) { // position in input gradient Tensor
+		float e = 0.0; // sum output error
+		for(int i = 0; i &lt; #(E.shape).x; i++){
+			e += W.read(i, pos.x) * E.read(i, pos.y);
+		}
+		return e;
+	}
+`;
+const WeightsShader = `
+	uniform Tensor E; // local error (from activation)
+	uniform Tensor W; // weights
+	uniform Tensor I; // input
+	uniform float l; // learning rate
+	float process(ivec4 pos) { // pos in weights Tensor
+		float e = 0.0; // avg node batch error
+		for(int i = 0; i &lt; #(E.shape).y; i++){
+			if (pos.y == #(I.shape).x) { // handle bias layer ?
+				e += E.read(pos.x, i);
+			} else {
+				e += E.read(pos.x, i) * I.read(pos.y, i);
 			}
-			return W.read(pos) - (l * e);
 		}
-	`,
-	Activation = (activationFunction) => `
-		uniform Tensor O; // weighted input
-		float process(ivec4 pos) {
-			float n = O.read(pos);
-			float o;
-			${ activationFunction }
-			return o;
-		}
-	`,
-	Gradient = (derivativeFunction) => `
-		uniform Tensor E;	// downstream error
-		uniform Tensor O;	// layer output
-		uniform Tensor H;	// weighted input
-		float process(ivec4 pos) {
-			float d;
-			float o = O.read(pos);
-			${ derivativeFunction }
-			d *= E.read(pos);
-			return d;
-		}
-	`;
+		return W.read(pos) - (l * e);
+	}
+`;
+const Gradient = (derivativeFunction) => `
+	uniform Tensor E;	// downstream error
+	uniform Tensor O;	// layer output
+	float process(ivec4 pos) {
+		float d;
+		float o = O.read(pos);
+		${ derivativeFunction }
+		d *= E.read(pos);
+		return d;
+	}
+`;
+const MergeShader = `
+	uniform Tensor A; // original weights
+	uniform Tensor B; // new weights
+	uniform int o; // offset
+	float process(ivec4 pos) {
+		return 
+	}
+`;
 
 /**
  * Dense fully connected layer
@@ -133,25 +136,24 @@ class Dense {
 	 * @param {?boolean} layer.bias - If layer uses bias
 	 * @param {number} layer.out - Number of output nodes in layer
 	 */
-	constructor(layer) {
+	constructor(layer, numInputs) {
 		// produce Output Tensor given input, weights, and bias Tensors
-		this.forward = layer.bias ? ForwardBiased : ForwardUnbiased;
-
-		this.activation = Activation(Funcs.Activation[layer.activation]);
+		this.forwardShader = layer.bias ? ForwardBiased(Funcs.Activation[layer.activation]) : ForwardUnbiased(Funcs.Activation[layer.activation]);
 							
 		// produce upstream error Tensor given downstream error, input, weights, bias
-		this.backward = layer.bias ? BackwardBiased : BackwardUnbiased;
-		this.gradient = Gradient(Funcs.Derivative[layer.activation]);
+		this.backwardShader = layer.bias ? BackwardBiasedShader : BackwardUnbiasedShader;
+		this.gradientShader = Gradient(Funcs.Derivative[layer.activation]);
 		// adjust weights Tensor given error and input Tensor
-		this.update = Weights;
+		this.updateShader = WeightsShader;
 
-		this.shape = layer.shape;
+		this.shape = [layer.out, numInputs];
 		this.input = null;
 		this.output = null;
-		this.weightedOutput = null;
 		this.weights = null;
 		this.bias = layer.bias;
-		this.size = this.shape[0] * this.shape[1] + (this.bias ? this.shape[0] : 0);
+		this.inputs = numInputs;
+		this.outputs = layer.out;
+		this.size = layer.out * numInputs + (this.bias ? 1 : 0);
 	}
 	/**
 	 * Load in weights to layer
@@ -160,10 +162,23 @@ class Dense {
 	 * @returns {number} Index of element following last weight in layer
 	 */
 	load(array, offset) {
-		var length = this.size;
 		// read in weights (and bias)
-		this.weights = new TF.InPlaceTensor(GL, ndarray( array.subarray(offset, offset + length), [this.shape[0], this.shape[1] + (this.bias ? 1 : 0)] ) );
-		offset += length;
+		this.weights = new TF.InPlaceTensor(GL, ndarray(array.subarray(offset, offset + this.size), [this.outputs, this.inputs + (this.bias ? 1 : 0)] ) );
+		offset += this.size;
+		return offset;
+	}
+
+	/**
+	 * Merge weights from array
+	 * @param {Float32Array} array - Array to read weights from (array contains weights for entire model)
+	 * @param {number} offset - Index of first weight for this layer in array
+	 * @returns {number} Index of element following last weight in layer
+	 */
+	merge(array, offset) {
+		let weights = new TF.Tensor(GL, ndarray(array.subarray(offset, offset + this.size), [this.outputs, this.inputs + (this.bias ? 1 : 0)]));
+		// read in weights (and bias)
+		this.weights.run(this.MergeShader, {A: this.weights, B: weights, o: offset});
+		offset += this.size;
 		return offset;
 	}
 	/**
@@ -172,8 +187,8 @@ class Dense {
 	randomWeights() {
 		this.weights = new TF.InPlaceTensor(GL, 
 			ndarray(
-				generateWeights(this.shape, (this.bias ? this.shape[0] : 0)), // values
-				[this.shape[0], this.shape[1] + (this.bias ? 1 : 0)] // shape
+				generateWeights(this.shape, (this.bias ? this.outputs : 0)), // values
+				[this.outputs, this.inputs + (this.bias ? 1 : 0)] // shape
 			)
 		);
 	}
@@ -190,16 +205,17 @@ class Dense {
 	 * @returns {Tensor} Output from layer
 	 */
 	forward(input) {
+		let samples = 0;
 		if (input instanceof Float32Array) {
-			this.input = new TF.Tensor(GL, ndarray( input, [ this.shape[1], (input.length / this.shape[1]) >> 0 ]));
-		} else this.input = input;
+			samples = (input.length / this.inputs) >> 0;
+			this.input = new TF.Tensor(GL, ndarray( input, [ this.inputs, samples ]));
+		} else {
+			this.input = input;
+			samples = input.shape[1];
+		}
 
-		this.weightedOutput = new TF.OutputTensor(GL, [ this.shape[0], this.input.shape[1] ]);
-		this.weightedOutput.run(this.forward, {W: this.weights, I: this.input});
-
-
-		this.output = new TF.OutputTensor(GL, [ this.shape[0], this.input.shape[1] ]);
-		this.output.run(this.activation, {O: this.weightedOutput});
+		this.output = new TF.InPlaceTensor(GL, [ this.outputs, samples ]);
+		this.output.run(this.forwardShader, { W: this.weights, I: this.input });
 
 		return this.output;
 	}
@@ -211,16 +227,15 @@ class Dense {
 	 */
 	backward(error, learning_rate) {
 		this.partial = new TF.OutputTensor(GL, this.input.shape);
-		this.local = new TF.OutputTensor(GL, this.output.shape);
 
 		// calculate local error from weightedOutput (strips out error from activation function)
-		this.local.run(this.gradient, {E: error, O: this.output, H: this.weightedOutput});
+		this.output.run(this.gradientShader, {E: error, O: this.output});
 
-		// calculate upstream errors from input
-		this.partial.run(this.backward, {E: this.local, W: this.weights});
+		// calculate upstream errors from input before weights are adjusted
+		this.partial.run(this.backwardShader, {E: this.output, W: this.weights});
 
 		// train weights based on local error
-		this.weights.run(this.update, {W: this.weights, E: this.local, I: this.input, l: learning_rate});
+		this.weights.run(this.updateShader, {W: this.weights, E: this.output, I: this.input, l: learning_rate});
 
 		return this.partial;
 	}
@@ -235,13 +250,13 @@ module.exports = Dense;</code></pre>
 </div>
 
 <nav>
-    <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="Dense.html">Dense</a></li><li><a href="MeanSquaredError.html">MeanSquaredError</a></li><li><a href="Model.html">Model</a></li><li><a href="Output.html">Output</a></li><li><a href="Validator.html">Validator</a></li></ul><h3><a href="global.html">Global</a></h3>
+    <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="CategoricalCrossEntropy.html">CategoricalCrossEntropy</a></li><li><a href="Dense.html">Dense</a></li><li><a href="MeanSquaredError.html">MeanSquaredError</a></li><li><a href="Model.html">Model</a></li><li><a href="Output.html">Output</a></li><li><a href="Validator.html">Validator</a></li></ul><h3><a href="global.html">Global</a></h3>
 </nav>
 
 <br class="clear">
 
 <footer>
-    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.5.5</a> on Sat Mar 10 2018 22:58:25 GMT-0800 (PST)
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.5.5</a> on Tue Mar 20 2018 07:36:45 GMT-0700 (PDT)
 </footer>
 
 <script> prettyPrint(); </script>

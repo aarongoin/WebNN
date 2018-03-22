@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <title>JSDoc: Class: Output</title>
+    <title>JSDoc: Class: CategoricalCrossEntropy</title>
 
     <script src="scripts/prettify/prettify.js"> </script>
     <script src="scripts/prettify/lang-css.js"> </script>
@@ -17,7 +17,7 @@
 
 <div id="main">
 
-    <h1 class="page-title">Class: Output</h1>
+    <h1 class="page-title">Class: CategoricalCrossEntropy</h1>
 
     
 
@@ -28,9 +28,9 @@
 
 <header>
     
-        <h2><span class="attribs"><span class="type-signature"></span></span>Output<span class="signature">(layer)</span><span class="type-signature"></span></h2>
+        <h2><span class="attribs"><span class="type-signature"></span></span>CategoricalCrossEntropy<span class="signature">(layer)</span><span class="type-signature"></span></h2>
         
-            <div class="class-description">Output layer used by Model</div>
+            <div class="class-description">Output layer for classifiers or other categorical models</div>
         
     
 </header>
@@ -45,12 +45,16 @@
     
 
     
-    <h4 class="name" id="Output"><span class="type-signature"></span>new Output<span class="signature">(layer)</span><span class="type-signature"></span></h4>
+    <h4 class="name" id="CategoricalCrossEntropy"><span class="type-signature"></span>new CategoricalCrossEntropy<span class="signature">(layer)</span><span class="type-signature"></span></h4>
     
 
     
 
 
+
+<div class="description">
+    Create output layer using Softmax activation and CrossEntropy loss function
+</div>
 
 
 
@@ -147,29 +151,6 @@
         </tr>
 
     
-
-        <tr>
-            
-                <td class="name"><code>loss</code></td>
-            
-
-            <td class="type">
-            
-                
-<span class="param-type">string</span>
-
-
-            
-            </td>
-
-            
-
-            
-
-            <td class="description last">Loss function used when evaluating output</td>
-        </tr>
-
-    
     </tbody>
 </table>
 
@@ -214,7 +195,7 @@
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="nn_layers_output_Output.js.html">nn/layers/output/Output.js</a>, <a href="nn_layers_output_Output.js.html#line16">line 16</a>
+        <a href="nn_layers_output_CategoricalCrossEntropy.js.html">nn/layers/output/CategoricalCrossEntropy.js</a>, <a href="nn_layers_output_CategoricalCrossEntropy.js.html#line61">line 61</a>
     </li></ul></dd>
     
 
@@ -246,6 +227,17 @@
     </div>
 
     
+        <h3 class="subsection-title">Extends</h3>
+
+        
+
+
+    <ul>
+        <li><a href="Output.html">Output</a></li>
+    </ul>
+
+
+    
 
     
 
@@ -268,7 +260,7 @@
     
 
     
-    <h4 class="name" id="backward"><span class="type-signature">(abstract) </span>backward<span class="signature">(expectedTensor)</span><span class="type-signature"> &rarr; {Tensor}</span></h4>
+    <h4 class="name" id="backward"><span class="type-signature"></span>backward<span class="signature">(expectedTensor)</span><span class="type-signature"> &rarr; {Tensor}</span></h4>
     
 
     
@@ -352,6 +344,11 @@
     
 
     
+    <dt class="tag-overrides">Overrides:</dt>
+    <dd class="tag-overrides"><ul class="dummy"><li>
+        <a href="Output.html#backward">Output#backward</a>
+    </li></ul></dd>
+    
 
     
 
@@ -428,7 +425,7 @@
     
 
     
-    <h4 class="name" id="forward"><span class="type-signature">(abstract) </span>forward<span class="signature">(input)</span><span class="type-signature"> &rarr; {Tensor}</span></h4>
+    <h4 class="name" id="forward"><span class="type-signature"></span>forward<span class="signature">(input)</span><span class="type-signature"> &rarr; {Tensor}</span></h4>
     
 
     
@@ -508,6 +505,11 @@
 
     
 
+    
+    <dt class="tag-overrides">Overrides:</dt>
+    <dd class="tag-overrides"><ul class="dummy"><li>
+        <a href="Output.html#forward">Output#forward</a>
+    </li></ul></dd>
     
 
     

@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: nn/layers/output/CategoricalCrossEntropy.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: nn/layers/output/CategoricalCrossEntropy.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>var ndarray = require("ndarray"),
+	TF = (global &amp;&amp; global.TF) || window.TF,
+    GL = (global &amp;&amp; global.GL) || window.GL,
+    Output = require('./Output');
+
+const SoftmaxShader = `
+    uniform Tensor I; // input
+    float process(ivec4 pos) {
+
+        float k = 0.0;
+        for(int i = 0; i &lt; #(I.shape).x; i++){
+            k += exp(I.read(i, pos.y));
+        }
+        return exp(I.read(pos)) / k;
+    }
+`;
+
+const GradientShader = `
+    uniform Tensor O;
+    uniform Tensor E;
+    float process(ivec4 pos) {
+
+        return 0.0 - E.read(pos) / O.read(pos);
+    }
+`;
+
+const LossShader = `
+    uniform Tensor O;
+    uniform Tensor E;
+    float process(ivec4 pos) {
+
+        float loss = 0.0;
+        for(int i = 0; i &lt; #(O.shape).y; i++){ // iterate over each sample
+            float l = 0.0;
+            for(int j = 0; j &lt; #(O.shape).x; j++){ // iterate over every output and calculate average
+                l -= E.read(j, i) * log(O.read(j, i));
+            }
+            loss = l / float(#(O.shape).y);
+        }
+        return loss;
+    }
+`;
+
+const AccuracyShader = `
+    uniform Tensor O;
+    uniform Tensor E;
+    float process(ivec4 pos) {
+
+        float s = 0.0;
+        for (int i = 0; i &lt; #(O.shape).x; i++) { // iterate over every output
+            s += pow((E.read(i, pos.x) - O.read(i, pos.x)), 2.0);
+        }
+        return 1.0 - clamp(s / float(#(O.shape).x), 0.0, 1.0);
+    }
+`;
+
+/**
+ * Output layer for classifiers or other categorical models
+ * @extends {Output}
+ */
+class CategoricalCrossEntropy extends Output {
+    /**
+	 * Create output layer using Softmax activation and CrossEntropy loss function
+	 * @param {Object} layer - Object describing output layer
+	 * @param {number} layer.output - Number of nodes to output
+	 */
+    constructor(layer) {
+        super(layer);
+        // from super:
+        // this.accuracy = 0;
+		// this.loss = 0;
+        // this.layer = layer;
+        // this.inputs = this.outputs = layer.out;
+
+        this.softmaxShader = SoftmaxShader;
+        this.gradientShader = GradientShader;
+        this.lossShader = LossShader;
+        this.accuracyShader = AccuracyShader;
+
+        this.lossTensor = new TF.OutputTensor(GL, [1]); // would loss be better served running on cpu?
+        this.outputTensor = null;
+    }
+
+    /**
+	 * Perform softmax activation on input
+	 * @override
+	 * @param {Tensor} inputTensor - Input tensor from last hidden layer
+	 * @returns {Tensor} Model output after softmax activation
+	 */
+    forward(inputTensor) {
+        if (this.outputTensor === null)
+            this.outputTensor = new TF.InPlaceTensor(GL, inputTensor.shape)
+        this.outputTensor.run(this.softmaxShader, { I: inputTensor });
+
+        return this.outputTensor;
+    }
+    /**
+     * Calculate error of output for backprop.
+	 * @override
+     * @param {Float32Array|Tensor} expectedTensor - Expected model output
+     * @returns {Tensor} Model output's gradient for backprop
+     */
+    backward(expectedTensor) {
+        if (expectedTensor instanceof Float32Array)
+            expectedTensor = new TF.Tensor(GL, ndarray(expectedTensor, [1, this.layer.output]));
+
+        // calculate error gradients
+        this.outputTensor.run(this.gradientShader, { O: this.outputTensor, E: expectedTensor });
+
+        // calculate model loss
+        this.lossTensor.run(this.lossShader, { G: this.outputTensor });
+        this.loss = this.lossTensor.read().data[0];
+
+        // calculate model accuracy
+        this.lossTensor.run(this.accuracyShader, { O: this.outputTensor, E: expectedTensor });
+        this.accuracy = this.lossTensor.read().data[0];
+
+        return this.outputTensor;
+    }
+}
+
+module.exports = CategoricalCrossEntropy;</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="CategoricalCrossEntropy.html">CategoricalCrossEntropy</a></li><li><a href="Dense.html">Dense</a></li><li><a href="MeanSquaredError.html">MeanSquaredError</a></li><li><a href="Model.html">Model</a></li><li><a href="Output.html">Output</a></li><li><a href="Validator.html">Validator</a></li></ul><h3><a href="global.html">Global</a></h3>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.5.5</a> on Tue Mar 20 2018 07:36:45 GMT-0700 (PDT)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>

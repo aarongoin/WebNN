@@ -28,13 +28,14 @@ let origPoolSize = Buffer.poolSize;
 Buffer.poolSize = 900;
 
 for (let i = 0; i < 86; i++) {
-    data.push(Float32Array(FS.readFileSync('./data/' + i, 'wb')));
+    data.push(new Float32Array(FS.readFileSync('./models/iris2/data/' + i).buffer));
 }
 Buffer.poolSize = origPoolSize;
 
 module.exports = {
     getBatch: function(size = 32) {
-        if (outstanding.length === 0) prepare();
+        if (outstanding.length === 0)
+            outstanding = prepare();
         return data[ outstanding.pop() ];
     }
 };

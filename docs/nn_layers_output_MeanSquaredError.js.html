@@ -32,75 +32,86 @@
     Output = require('./Output');
 
 const GradientShader = `
-		uniform Tensor O;
-		uniform Tensor E;
-		float process(ivec4 pos) {
-			return O.read(pos) - E.read(pos);
-		}
-	`;
+	uniform Tensor O;
+	uniform Tensor E;
+	float process(ivec4 pos) {
+
+		return O.read(pos) - E.read(pos);
+	}
+`;
 
 const AccuracyShader = `
-		uniform Tensor O;
-		uniform Tensor E;
-		float process(ivec4 pos) {
-			float s = 0.0;
-			for (int i = 0; i &lt; #(O.shape).x; i++) { // iterate over every output
-				s += pow((E.read(i, pos.x) - O.read(i, pos.x)), 2.0);
-			}
-			return 1.0 - clamp(s / float(#(O.shape).x), 0.0, 1.0);
+	uniform Tensor O;
+	uniform Tensor E;
+	float process(ivec4 pos) {
+
+		float s = 0.0;
+		for (int i = 0; i &lt; #(O.shape).x; i++) { // iterate over every output
+			s += pow((E.read(i, pos.x) - O.read(i, pos.x)), 2.0);
 		}
-	`;
+		return 1.0 - clamp(s / float(#(O.shape).x), 0.0, 1.0);
+	}
+`;
 
 const LossShader 	= `
-		uniform Tensor G;
-		float process(ivec4 pos) {
-			float loss = 0.0;
-			for(int i = 0; i &lt; #(G.shape).y; i++){ // iterate over each sample
-				float l = 0.0;
-				for(int j = 0; j &lt; #(G.shape).x; j++){ // iterate over every output and calculate average
-					l += pow(float(G.read(j, i)), 2.0);
-				}
-				loss += l / float(#(G.shape).y);
+	uniform Tensor G;
+	float process(ivec4 pos) {
+
+		float loss = 0.0;
+		for(int i = 0; i &lt; #(G.shape).y; i++){ // iterate over each sample
+			float l = 0.0;
+			for(int j = 0; j &lt; #(G.shape).x; j++){ // iterate over every output and calculate average
+				l += pow(float(G.read(j, i)), 2.0);
 			}
-			return loss;
+			loss += l / float(#(G.shape).y);
 		}
-	`;
+		return loss;
+	}
+`;
 
 /**
- * Output layer that uses mean squared error in determining loss.
+ * Output layer for regression models
  * @extends {Output}
  */
 class MeanSquaredError extends Output {
     /**
-     * 
+     * Create output layer using MeanSquaredError for loss function
      * @param {Object} layer - Object describing output layer
 	 * @param {number} layer.output - Number of nodes to output
-	 * @param {string} layer.loss - Loss function used when evaluating output
      */
     constructor(layer) {
-        super(layer);
+		super(layer);
+		// from super:
+        // this.accuracy = 0;
+		// this.loss = 0;
+        // this.layer = layer;
+        // this.inputs = this.outputs = layer.out;
 
-        this.GradientShader = GradientShader;
-        this.LossShader = LossShader;
-        this.AccuracyShader = AccuracyShader;
+        this.gradientShader = GradientShader;
+        this.lossShader = LossShader;
+        this.accuracyShader = AccuracyShader;
 
         this.lossTensor = new TF.OutputTensor(GL, [1]);
-        this.outputTensor = new TF.OutputTensor(GL, [1, layer.output]);
+        this.outputTensor = null;
     }
     /**
-     * 
-     * @param {Float32Array|Tensor} expectedTensor 
+     * Calculate error of output for backprop.
+	 * @override
+     * @param {Float32Array|Tensor} expectedTensor - Expected model output
      */
     backward(expectedTensor) {
         if (expectedTensor instanceof Float32Array)
-            expectedTensor = new TF.Tensor(GL, ndarray( expectedTensor, [1, this.layer.output]));
+            expectedTensor = new TF.Tensor(GL, ndarray( expectedTensor, this.outputTensor.shape ));
 
-        
-        this.outputTensor.run(this.GradientShader, { O: this.outputTensor, E: expectedTensor });
-        this.lossTensor.run(this.LossShader, { G: this.outputTensor });
+		// calculate error gradients
+		this.outputTensor.run(this.gradientShader, { O: this.outputTensor, E: expectedTensor });
 
-        // this.loss = this.lossTensor.read().data[0];
-        this.lossTensor.run(this.AccuracyShader, { O:this.outputTensor , E: expectedTensor });
+		// calculate model loss
+		this.lossTensor.run(this.lossShader, { G: this.outputTensor });
+		this.loss = this.lossTensor.read().data[0];
+
+		// calculate model accuracy
+        this.lossTensor.run(this.accuracyShader, { O:this.outputTensor , E: expectedTensor });
         this.accuracy = this.lossTensor.read().data[0];
 
         return this.outputTensor;
@@ -116,13 +127,13 @@ module.exports = MeanSquaredError;</code></pre>
 </div>
 
 <nav>
-    <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="Dense.html">Dense</a></li><li><a href="MeanSquaredError.html">MeanSquaredError</a></li><li><a href="Model.html">Model</a></li><li><a href="Output.html">Output</a></li><li><a href="Validator.html">Validator</a></li></ul><h3><a href="global.html">Global</a></h3>
+    <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="CategoricalCrossEntropy.html">CategoricalCrossEntropy</a></li><li><a href="Dense.html">Dense</a></li><li><a href="MeanSquaredError.html">MeanSquaredError</a></li><li><a href="Model.html">Model</a></li><li><a href="Output.html">Output</a></li><li><a href="Validator.html">Validator</a></li></ul><h3><a href="global.html">Global</a></h3>
 </nav>
 
 <br class="clear">
 
 <footer>
-    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.5.5</a> on Sat Mar 10 2018 22:58:25 GMT-0800 (PST)
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.5.5</a> on Tue Mar 20 2018 07:36:45 GMT-0700 (PDT)
 </footer>
 
 <script> prettyPrint(); </script>
