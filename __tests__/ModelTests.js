@@ -1,6 +1,6 @@
 var TF = require('tensorfire'),
 	GL = require('gl')(512, 512, { preserveDrawingBuffer: true }),
-	Model = require('../lib/Model')(TF, GL),
+	Model = require('../lib/nn/Model')(TF, GL),
 	ndarray = require('ndarray'),
 	testModel,
 	result;
