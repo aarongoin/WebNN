@@ -1,6 +1,6 @@
-var TF = require('tensorfire'),
-	GL = require('gl')(512, 512, { preserveDrawingBuffer: true }),
-	Model = require('../lib/nn/Model')(TF, GL),
+var TF = global.TF = TF = require('tensorfire'),
+	GL = global.GL = GL = require('gl')(512, 512, { preserveDrawingBuffer: true }),
+	Model = require('../lib/nn/Model'),
 	ndarray = require('ndarray'),
 	testModel,
 	result;
@@ -8,47 +8,100 @@ var TF = require('tensorfire'),
 // MODEL TEST
 describe('Testing Model Class', () => {
 
-	describe('w/ Softmax Activation & Cross-Entropy Loss', () => {
-		test('on input: [0,1], and expecting: [1],', () => {
-			
+	describe('w/ No Activation with Mean Squared Error Loss', () => {
+		test('on input: [0,1], expect: [1], weights:[[0.5, 0.4, 0.25, 0.3, 0.5, 0.6], [0.1, 0.4, 0.3]], output close to [0.3055] and gradient close to [-0.6944]', () => {
+
 			var weights0 = [0.5, 0.4, 0.25, 0.3, 0.5, 0.6],
 				weights1 = [0.1, 0.4, 0.3];
 
-			testModel = new Model({ layers: [
-				{type:"dense", activation:"tanh", shape:[3,2], bias:false},
-				{type:"dense", activation:"tanh", shape:[1,3], bias:false},
-				{type:"output", activation: 'none', loss: 'mse'}
-			]}, weights0.concat(weights1));
+			var input = [0, 1],
+				expected = [1];
 
+			testModel = new Model([
+				{ input: 2 },
+				{ dense: 'tanh', out: 3 },
+				{ dense: 'tanh', out: 1 },
+				{ output: 1, loss: 'mean_squared_error' }
+			], weights0.concat(weights1));
 
-		for (var i = 0; i < 10; i++) {
-			testModel.train(1, 1, new Float32Array([0,1, 1,0, 1,1, 0,0]), new Float32Array([1, 1, 0, 0]));
+			testModel.forward(new Float32Array(input));
 
-			var output = `
-Layer 0:
-   Layer Input => [${testModel.layers[0].input.read().data}] [${testModel.layers[0].partial.read().data}] <= Backprop
-   	   Weights => [${weights0}] [${testModel.layers[0].weights.read().data}] <= New Weights
-Weighted Input => [${testModel.layers[0].weightedOutput.read().data}] [${testModel.layers[0].local.read().data}] <= Gradient
-  Layer Output => [${testModel.layers[0].output.read().data}] [${testModel.layers[1].partial.read().data}] <= Error
-		
-Layer 1:
-   Layer Input => [${testModel.layers[1].input.read().data}] [${testModel.layers[1].partial.read().data}] <= Backprop
-   	   Weights => [${weights1}] [${testModel.layers[1].weights.read().data}] <= New Weights
-Weighted Input => [${testModel.layers[1].weightedOutput.read().data}] [${testModel.layers[1].local.read().data}] <= Gradient
-  Layer Output => [${testModel.layers[1].output.read().data}] [${testModel.layers[2].output.output.read().data}] <= Error
-			`;
+			result = testModel.output.outputTensor.read().data;
+			expect(result[0]).toBeCloseTo(0.3055);
 
-			output = output.replace(/\d{12},/g, ",");
-			output = output.replace(/\d{12}]/g, "]");
-			console.log(output);
-		}
+			result = testModel.output.backward(new Float32Array(expected)).read().data;
+			expect(result[0]).toBeCloseTo(-0.6944);
+		});
 
-			expect(result[0]).toBeCloseTo(0.5);
-			expect(result[1]).toBeCloseTo(0.18014991283416748);
-			expect(result[2]).toBeCloseTo(0.5);
-			expect(result[3]).toBeCloseTo(0.5);
-			expect(result[4]).toBeCloseTo(0.18014991283416748);
-			expect(result[5]).toBeCloseTo(0.5);
+		test('training model twice on the same data should give a lower loss the second time', () => {
+
+			var weights0 = [0.5, 0.4, 0.25, 0.3, 0.5, 0.6],
+				weights1 = [0.1, 0.4, 0.3];
+
+			var input = [0, 1, 1, 0, 1, 1, 0, 0],
+				expected = [1, 1, 0, 0];
+
+			testModel = new Model([
+				{ input: 2 },
+				{ dense: 'tanh', out: 3 },
+				{ dense: 'tanh', out: 1 },
+				{ output: 1, loss: 'mean_squared_error' }
+			], weights0.concat(weights1));
+
+			testModel.train(new Float32Array(input), new Float32Array(expected), 1, (weights, accuracy) => {
+				var loss1 = testModel.output.loss;
+				testModel.train(new Float32Array(input), new Float32Array(expected), 1, (weights, accuracy) => {
+					expect(testModel.output.loss).toBeLessThan(loss1);
+				});
+			});
+		});
+	});
+
+	describe('w/ Softmax Activation & Cross-Entropy Loss', () => {
+		test('on input: [0, 1, 1], and expecting: [1, 0], weights:[0.5, 0.4, 0.25, 0.3, 0.5, 0.6], output close to [0.4430, 0.5569] and gradient close to [-0.5569, 0.5569]', () => {
+			
+			var weights = [0.5, 0.4, 0.25, 0.3, 0.5, 0.6];
+
+			var input = [0,1,1],
+				expected = [1, 0];
+
+			testModel = new Model([
+				{ input: 3 },
+				{ dense: 'tanh', out: 2 },
+				{ output: 2, loss: 'categorical_crossentropy'}
+			], weights);
+
+			testModel.forward(new Float32Array(input));
+
+			result = testModel.output.outputTensor.read().data;
+			expect(result[0]).toBeCloseTo(0.4430);
+			expect(result[1]).toBeCloseTo(0.5569);
+			expect(result[0] + result[1]).toBeCloseTo(1);
+
+			result = testModel.output.backward(new Float32Array(expected)).read().data;
+			expect(result[0]).toBeCloseTo(-0.5569);
+			expect(result[1]).toBeCloseTo(0.5569);
+		});
+
+		test('training model twice on the same data should give a lower loss the second time', () => {
+
+			var weights = [0.5, 0.4, 0.25, 0.3, 0.5, 0.6];
+
+			var input = [0, 1, 1],
+				expected = [1, 0];
+
+			testModel = new Model([
+				{ input: 3 },
+				{ dense: 'tanh', out: 2 },
+				{ output: 2, loss: 'categorical_crossentropy' }
+			], weights);
+
+			testModel.train(new Float32Array(input), new Float32Array(expected), 1, (weights, accuracy) => {
+				var loss1 = testModel.output.loss;
+				testModel.train(new Float32Array(input), new Float32Array(expected), 1, (weights, accuracy) => {
+					expect(testModel.output.loss).toBeLessThan(loss1);
+				});
+			});
 		});
 	});
 });
