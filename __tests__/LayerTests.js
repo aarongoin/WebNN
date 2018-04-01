@@ -259,15 +259,35 @@ describe('Testing Output Layer', () => {
 		test('on input: [0,0,0,0,1], and expecting: [0,0,0,0,1], error output: [0.1488, 0.1488, 0.1488, 0.1488, -0.5953]', () => {
 			var testOutput = new TF.Tensor(GL, ndarray(new Float32Array([0,0,0,0,1]), [5, 1]));
 			testLayer = Output({ output: 5, loss: 'categorical_crossentropy'});
-			console.log(testLayer.forward(testOutput).read().data);
+			testLayer.forward(testOutput);
 			result = testLayer.backward(new Float32Array([0,0,0,0,1])).read().data;
-			console.log(result);
+			// console.log(result);
 
 			expect(result[0]).toBeCloseTo(0.1488475799560547);
 			expect(result[1]).toBeCloseTo(0.1488475799560547);
 			expect(result[2]).toBeCloseTo(0.1488475799560547);
 			expect(result[3]).toBeCloseTo(0.1488475799560547);
 			expect(result[4]).toBeCloseTo(-0.5953903198242188);
+		});
+
+		test('on output: [1,0,0], and expected: [1,0,0], loss should be 0 and accuracy should be 1', () => {
+			var testOutput = new TF.InPlaceTensor(GL, ndarray(new Float32Array([1,0,0]), [3]));
+			testLayer = Output({ output: 3, loss: 'categorical_crossentropy' });
+			testLayer.outputTensor = testOutput;
+			result = testLayer.backward(new Float32Array([1,0,0])).read().data;
+			console.log(result);
+			expect(testLayer.loss).toEqual(0);
+			expect(testLayer.accuracy).toEqual(1);
+		});
+
+		test('on output: [1,0,0, 0.25,0.5,0.25], and expected: [1,0,0, 1,0,0], loss should be 0 and accuracy should be 0.5', () => {
+			var testOutput = new TF.InPlaceTensor(GL, ndarray(new Float32Array([1,0,0, 0.25,0.5,0.25]), [3, 2]));
+			testLayer = Output({ output: 3, loss: 'categorical_crossentropy' });
+			testLayer.outputTensor = testOutput;
+			result = testLayer.backward(new Float32Array([1,1,0,0,0,0])).read().data;
+			console.log(result);
+			expect(testLayer.loss).toEqual(0);
+			expect(testLayer.accuracy).toBeCloseTo(0.5);
 		});
 	});
 

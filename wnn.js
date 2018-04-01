@@ -39,7 +39,7 @@ function reset(name) {
     if (name) {
         console.log('Resetting model ' + name + ' at path: ' + path);
         // reset model for training
-        PS.execFile('rm', ['-f', path + 'weights.bin', path + 'log.csv', path + 'validation.csv']);
+        PS.execFile('rm', ['-f', path + 'weights', path + 'log.csv', path + 'validation.csv']);
         PS.execFile('cp', ['./lib/templates/log.csv', './lib/templates/validation.csv', path]);
     } else {
         console.error('Invalid command!');
