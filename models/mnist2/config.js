@@ -1,8 +1,9 @@
+const dl = require ("./dataloader");
 module.exports = {
     // using byte weights provides the following pros and cons:
-    //      pros: 
+    //      pros:
     //        - weights take up 75% less space which can be a BIG savings for network cost and transfer time
-    //        - weights are kept clamped between -1 and 1, which will prevent weight saturation 
+    //        - weights are kept clamped between -1 and 1, which will prevent weight saturation
     //        - weights are read the same regardless of system endianness -- a minor perk
     //      cons:
     //        - weights suffer a max precision error of 0.0078125, which could be rather awful for your model
@@ -27,13 +28,13 @@ module.exports = {
 
         // learning rate decay can help your model reach maximum accuracy, but too much can stop your model short
         // if 0, then the learning rate does not decay
-        // else shrink the learning rate when learning begins to oscillate 
+        // else shrink the learning rate when learning begins to oscillate
         learning_decay: 0,
 
         // if you wish to train your model with an existing dataset, you must define the delegate that will provide data minibatches to be sent to dumb clients to train
         // your delegate must implement the method: getBatch(size) which should return the training data as a TypedArray
         // MiniBatch = [ N, input_set_0, ... input_set_N, output_set_0, ... output_set_N ], where N is number of training samples in minibatch, and each set is the in-order list of inputs or output
-        data_delegate: undefined
+        data_delegate: dl
 
     },
 
@@ -48,7 +49,7 @@ module.exports = {
         // you must define the delegate that will provide validation minibatches to the model validator
         // your delegate must implement the methods: getX() and getY() which should return the validation input and output data respectively as a Float32Array
         // MiniBatch = [ N, input_set_0, ... input_set_N, output_set_0, ... output_set_N ], where N is number of training samples in minibatch, and each set is the in-order list of inputs or output
-        data_delegate: undefined
+        data_delegate: dl
 
     }
 }
