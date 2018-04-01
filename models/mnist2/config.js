@@ -41,7 +41,7 @@ module.exports = {
     validation: {
         // can force all client weights to be merged into single set before validating
         // merged weights will be redistributed to every client to synchronize them
-        merge_all: true,
+        merge_all: false,
 
         // how many seconds between model validations
         validate_every: 1,
