@@ -137,7 +137,7 @@ class MnistData {
       batchLabelsArray.set(label, i * NUM_CLASSES);
     }
 
-    return {batchImagesArray, batchLabelsArray}
+    return {x:batchImagesArray, y:batchLabelsArray}
     /*const xs = tf.tensor2d(batchImagesArray, [batchSize, IMAGE_SIZE]);
     const labels = tf.tensor2d(batchLabelsArray, [batchSize, NUM_CLASSES]);
 
