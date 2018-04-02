@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@tensorflow/tfjs": "^0.6.1",
+    "get-pixels": "^3.3.0",
     "gl": "^4.0.4",
     "ndarray": "^1.0.18",
     "pako": "^1.0.6",

@@ -1,4 +1,4 @@
-const dl = require ("./dataloader");
+const dl = new (require ("./dataloader"))();
 module.exports = {
     // using byte weights provides the following pros and cons:
     //      pros:
@@ -21,7 +21,7 @@ module.exports = {
         // if end_condition is 0, then model will train forever
         // if end_condition > 0 and end_condition < 1, then model will train until accuracy equals end_condition
         // if end_condition >= 1, then the model will train for end_condition seconds.
-        end_condition: 0.9,
+        end_condition: 0.99,
 
         // learning rate is how fast your model will adjust itself when it's wrong
         learning_rate: 0.01,
