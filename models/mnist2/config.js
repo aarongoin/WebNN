@@ -43,6 +43,9 @@ module.exports = {
         // merged weights will be redistributed to every client to synchronize them
         merge_all: false,
 
+        // batch size is the number of validation samples per mini-batch 
+        batch_size: 64,
+
         // how many seconds between model validations
         validate_every: 10,
 

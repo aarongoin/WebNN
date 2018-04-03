@@ -26,7 +26,7 @@ function train(name, port) {
         console.log('Watch model validation at localhost:' + port + '/watcher\n')
         // start serving model for training
         //PS.spawn('node', ['./lib/server/WNNServer.js', path, port], { detached: true });
-        WNNServer(path, port);
+        WNNServer(name, path, port);
     } else {
         console.error('Invalid command!');
         console.log(helpText)
