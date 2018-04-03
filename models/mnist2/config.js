@@ -44,7 +44,7 @@ module.exports = {
         merge_all: false,
 
         // how many seconds between model validations
-        validate_every: 1,
+        validate_every: 10,
 
         // you must define the delegate that will provide validation minibatches to the model validator
         // your delegate must implement the methods: getX() and getY() which should return the validation input and output data respectively as a Float32Array

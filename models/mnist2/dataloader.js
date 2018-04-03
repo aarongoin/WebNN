@@ -117,10 +117,11 @@ class MnistData {
         return this.nextBatch(batchSize, [this.testImages, this.testLabels], () => {
             this.shuffledTestIndex = (this.shuffledTestIndex + 1) % this.testIndices.length;
             return this.testIndices[this.shuffledTestIndex];
-        });
+        },);
     }
 
     nextBatch(batchSize, data, index) {
+        const batchNum = new Float32Array([batchSize]);
         const batchImagesArray = new Float32Array(batchSize * IMAGE_SIZE);
         const batchLabelsArray = new Uint8Array(batchSize * NUM_CLASSES);
 
@@ -134,7 +135,11 @@ class MnistData {
             batchLabelsArray.set(label, i * NUM_CLASSES);
         }
 
-        return {x:batchImagesArray, y:batchLabelsArray}
+        return Buffer.concat([
+            new Uint8Array(batchNum.buffer),
+            new Uint8Array(batchImagesArray.buffer),
+            batchLabelsArray
+        ]);
     }
 }
 
