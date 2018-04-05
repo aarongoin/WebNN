@@ -40,7 +40,7 @@ function reset(name) {
         console.log('Resetting model ' + name + ' at path: ' + path);
         // reset model for training
         PS.execFile('rm', ['-f', path + 'weights', path + 'log.csv', path + 'validation.csv']);
-        PS.execFile('cp', ['./lib/templates/log.csv', './lib/templates/validation.csv', path]);
+        PS.execFile('cp', ['./lib/templates/log.csv', './lib/templates/validation.csv', './lib/templates/training.csv', path]);
     } else {
         console.error('Invalid command!');
         console.log(helpText)
@@ -72,7 +72,7 @@ function copy(original, copy) {
         // copy original 
         PS.execFile('mkdir', [copy_path]);
         PS.execFile('cp', [orig_path + 'model.js', orig_path + 'config.js', copy_path]);
-        PS.execFile('cp', ['./lib/templates/log.csv', './lib/templates/validation.csv', copy_path]);
+        PS.execFile('cp', ['./lib/templates/log.csv', './lib/templates/validation.csv', './lib/templates/training.csv', copy_path]);
     } else {
         console.error('Invalid command!');
         console.log(helpText)

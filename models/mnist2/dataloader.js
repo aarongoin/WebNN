@@ -17,6 +17,7 @@
 
 //import * as tf from '@tensorflow/tfjs';
 const tf = require('@tensorflow/tfjs');
+const FS = require('fs');
 const get_pixels = require('get-pixels');
 const https = require('https');
 
@@ -28,9 +29,11 @@ const NUM_TRAIN_ELEMENTS = 55000;
 const NUM_TEST_ELEMENTS = NUM_DATASET_ELEMENTS - NUM_TRAIN_ELEMENTS;
 
 const MNIST_IMAGES_SPRITE_PATH =
-    'https://storage.googleapis.com/learnjs-data/model-builder/mnist_images.png';
+    // 'https://storage.googleapis.com/learnjs-data/model-builder/mnist_images.png';
+    './models/mnist2/mnist_images.png';
 const MNIST_LABELS_PATH =
-    'https://storage.googleapis.com/learnjs-data/model-builder/mnist_labels_uint8';
+    // 'https://storage.googleapis.com/learnjs-data/model-builder/mnist_labels_uint8';
+    './models/mnist2/mnist_labels_uint8';
 
 /**
  * A class that fetches the sprited MNIST dataset and returns shuffled batches.
@@ -47,6 +50,7 @@ class MnistData {
     }
 
     async load() {
+        // FS.readFile(MNIST_IMAGES_SPRITE_PATH)
         // Make a request for the MNIST sprited image.
         get_pixels(MNIST_IMAGES_SPRITE_PATH, undefined, (error, pixels) => {
             if (error) {
@@ -60,31 +64,43 @@ class MnistData {
             for (let j = 0; j < floatView.length / 4; j++) {
                 this.datasetImages[j] = floatView[j * 4] / 255;
             }
-            console.log("Image data recieved.");
+            console.log("Loaded image data.");
             this.onload();
 
         });
 
         // Make HTTP request to get Labels for images
-        https.get(MNIST_LABELS_PATH, (response) => {
-            const { statusCode } = response;
+        FS.readFile(MNIST_LABELS_PATH, (error, data) => {
+        // https.get(MNIST_LABELS_PATH, (response) => {
+            // const { statusCode } = response;
 
-            if (statusCode !== 200) {
+            // if (statusCode !== 200) {
+            //     console.log('Failed to get labels!')
+            //     return ;
+            // } else {
+            //     console.log("Getting labels...");
+            // }
+
+            // var data = [];
+
+            // response.on('data', (chunk) => {
+            //     data.push(chunk);
+            // }).on('end', () => {
+            //     this.datasetLabels = Buffer.concat(data);
+            //     console.log("Labels recieved.");
+            //     this.onload();
+            // });
+
+            if (error) {
                 console.log('Failed to get labels!')
                 return ;
             } else {
-                console.log("Getting labels...");
+                console.log("Loaded labels.");
             }
-
-            var data = [];
-
-            response.on('data', (chunk) => {
-                data.push(chunk);
-            }).on('end', () => {
-                this.datasetLabels = Buffer.concat(data);
-                console.log("Labels recieved.");
-                this.onload();
-            });
+            
+            this.datasetLabels = data;
+            this.onload();
+            
         });
 
         // Create shuffled indices into the train/test set for when we select a
