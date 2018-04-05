@@ -1,9 +1,9 @@
 package-lock.json
 
-logs/
-weights/
-data/
-test/
+models/
+docs/
+private/
+weights
 SAVED/
 
 
