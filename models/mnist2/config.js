@@ -41,7 +41,7 @@ module.exports = {
     validation: {
         // can force all client weights to be merged into single set before validating
         // merged weights will be redistributed to every client to synchronize them
-        merge_all: false,
+        merge_all: true,
 
         // batch size is the number of validation samples per mini-batch 
         batch_size: 64,
