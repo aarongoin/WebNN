@@ -21,14 +21,12 @@ module.exports = {
         // if end_condition is 0, then model will train forever
         // if end_condition > 0 and end_condition < 1, then model will train until accuracy equals end_condition
         // if end_condition >= 1, then the model will train for end_condition seconds.
-        end_condition: 0.99,
+        end_condition: 0,
 
         // learning rate is how fast your model will adjust itself when it's wrong
         learning_rate: 0.2,
 
-        // learning rate decay can help your model reach maximum accuracy, but too much can stop your model short
-        // if 0, then the learning rate does not decay
-        // else shrink the learning rate when learning begins to oscillate
+        // learning rate decay can help your model reach maximum accuracy
         learning_decay: true,
 
         // if you wish to train your model with an existing dataset, you must define the delegate that will provide data minibatches to be sent to dumb clients to train
@@ -41,7 +39,7 @@ module.exports = {
     validation: {
         // can force all client weights to be merged into single set before validating
         // merged weights will be redistributed to every client to synchronize them
-        merge_all: true,
+        merge_all: false,
 
         // batch size is the number of validation samples per mini-batch 
         batch_size: 64,
