@@ -10,7 +10,8 @@ usage:
 commands:
     new <name>                  - Create blank model
     reset <name>                - Resets model back to initialized stated
-    copy <src_name> <dest_name> - Copies model to a new clean version.
+    copy <src_name> <dest_name> - Copies model to a new clean version ready for training
+    save <src_name> <dest_name> - Copies model including all logs and weights
     train <name> <port>         - Runs training for model
     retrain <name> <port>       - Shortcut for reset <name> followed by train <name> <port>
     list                        - List all models
@@ -78,6 +79,22 @@ function copy(original, copy) {
         console.log(helpText)
     }
 }
+
+function save(original, copy) {
+    const orig_path = './models/' + original + '/.';
+    const copy_path = './models/' + copy + '/';
+
+    if (original && copy) {
+        console.log('Saving ' + original + ' as model ' + copy + ' at path: ' + copy_path);
+        // copy original 
+        PS.execFile('mkdir', [copy_path]);
+        PS.execFile('cp', ['-R', orig_path, copy_path]);
+    } else {
+        console.error('Invalid command!');
+        console.log(helpText)
+    }
+}
+
 function list() {
     const path = './models/';
 
@@ -114,6 +131,10 @@ switch (command) {
 
     case 'copy':
         copy(process.argv[3], process.argv[4]);
+        break;
+    
+    case 'save':
+        save(process.argv[3], process.argv[4]);
         break;
 
     case 'list':
