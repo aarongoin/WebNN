@@ -50,8 +50,6 @@ class MnistData {
     }
 
     async load() {
-        // FS.readFile(MNIST_IMAGES_SPRITE_PATH)
-        // Make a request for the MNIST sprited image.
         get_pixels(MNIST_IMAGES_SPRITE_PATH, undefined, (error, pixels) => {
             if (error) {
                 console.log("Failed to get image!");
@@ -69,28 +67,7 @@ class MnistData {
 
         });
 
-        // Make HTTP request to get Labels for images
         FS.readFile(MNIST_LABELS_PATH, (error, data) => {
-        // https.get(MNIST_LABELS_PATH, (response) => {
-            // const { statusCode } = response;
-
-            // if (statusCode !== 200) {
-            //     console.log('Failed to get labels!')
-            //     return ;
-            // } else {
-            //     console.log("Getting labels...");
-            // }
-
-            // var data = [];
-
-            // response.on('data', (chunk) => {
-            //     data.push(chunk);
-            // }).on('end', () => {
-            //     this.datasetLabels = Buffer.concat(data);
-            //     console.log("Labels recieved.");
-            //     this.onload();
-            // });
-
             if (error) {
                 console.log('Failed to get labels!')
                 return ;
