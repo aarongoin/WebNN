@@ -124,7 +124,7 @@ class MnistData {
 
     nextTrainBatch(batchSize) {
         return this.nextBatch( batchSize, [this.trainImages, this.trainLabels], () => {
-            this.shuffledTrainIndex = (this.shuffledTrainIndex + 64) % this.trainIndices.length;
+            this.shuffledTrainIndex = (this.shuffledTrainIndex + 1) % this.trainIndices.length;
             return this.trainIndices[this.shuffledTrainIndex];
         });
     }
