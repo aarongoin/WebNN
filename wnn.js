@@ -1,7 +1,7 @@
 const HTTP = require('http');
 const PS = require('child_process');
 const FS = require('fs');
-const WNNServer = require('./lib/server/WNNServer');
+const WNNServer = require('./lib/WNNServer');
 
 const helpText = `
 usage:
@@ -19,7 +19,7 @@ commands:
 
 
 function train(name, port) {
-    const path = '../../models/' + name + '/';
+    const path = '../models/' + name + '/';
 
     if (name) {
         console.log('Training model: ' + name + ' at port: ' + port);

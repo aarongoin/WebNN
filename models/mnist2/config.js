@@ -16,7 +16,7 @@ module.exports = {
         byte_data: false,
 
         // batch size is the number of training samples per mini-batch sent to clients
-        batch_size: 1,
+        batch_size: 64,
 
         // if end_condition is 0, then model will train forever
         // if end_condition > 0 and end_condition < 1, then model will train until accuracy equals end_condition
