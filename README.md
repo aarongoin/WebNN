@@ -1,6 +1,6 @@
 # WebNN
 
-WebNN (WNN) is a JavaScript framework for distribution and training of Neural Networks (NN) through the internet. This is a large part of my research, working alongside Ron Cotton into distributed training of neural networks at WSU Vancouver. WNN consists of a NodeJS HTTP server that facilitates the asynchronous distributed training of user-defined NN. It builds on [TensorFlow.js](https://js.tensorflow.org), which leverages the clients' GPU using WebGL (or CPU if WebGL unavailable) to run and train a NN in any web browser that supports WebGL 1.0 or better--which is 96% of browsers in the US and 93% of browsers globally (source: [Caniuse](https://caniuse.com/#search=webgl). 
+WebNN (WNN) is a JavaScript framework for distribution and training of Neural Networks (NN) through the internet. This is a large part of my research, working alongside Ron Cotton into distributed training of neural networks at WSU Vancouver. WNN consists of a NodeJS HTTP server that facilitates the asynchronous distributed training of user-defined NN. It builds on [TensorFlow.js](https://js.tensorflow.org), which leverages the clients' GPU using WebGL (or CPU if WebGL unavailable) to run and train a NN in any web browser that supports WebGL 1.0 or better--which is 96% of browsers in the US and 93% of browsers globally [[Caniuse](https://caniuse.com/#search=webgl)]. 
 
 
 ## Getting Started
