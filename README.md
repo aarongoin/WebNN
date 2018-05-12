@@ -43,3 +43,6 @@ Also included will be these empty CSV files:
 - log.csv - where all server requests will be logged
 - training.csv - where all client training metrics are logged
 - validation.csv - where all validation metrics are logged
+
+### Custom Clients
+WebNN can be included into most front-ends painlessly. Simply import the ModelClient.js module into your client and instantiate a new ModelClient (singleton class). See the documentation for ModelClient to see the available functions and lifecycle.
